@@ -1,0 +1,59 @@
+{
+    "Lyrics settings": {
+        "Lyrics settings": "歌词设置"
+    },
+    "Applies to the music widget and media page. Track metadata is the fallback; no AI translation.": {
+        "Applies to the music widget and media page. Track metadata is the fallback; no AI translation.": "设置同时应用于音乐组件和媒体页。无歌词时显示歌名和歌手；不调用 AI 翻译。"
+    },
+    "Show lyrics": {
+        "Show lyrics": "显示歌词"
+    },
+    "When off, show track metadata and the original media layout.": {
+        "When off, show track metadata and the original media layout.": "关闭后，音乐组件显示歌名和歌手，媒体页恢复封面。"
+    },
+    "Show translation": {
+        "Show translation": "显示译文"
+    },
+    "When off, both views show original lyrics only.": {
+        "When off, both views show original lyrics only.": "关闭后，两处只显示原文。"
+    },
+    "Available translation": {
+        "Available translation": "本曲可用译文"
+    },
+    "The provider supplies one translation without a language tag.": {
+        "The provider supplies one translation without a language tag.": "歌词源未标注语言，当前仅提供一份来源译文。"
+    },
+    "No translation available for this track; fetching is disabled when lyrics are off.": {
+        "No translation available for this track; fetching is disabled when lyrics are off.": "本曲暂无可用译文；关闭歌词时不查询。"
+    },
+    "Lyrics source": {
+        "Lyrics source": "歌词源优先级"
+    },
+    "Choose NetEase first for supplied translations; LRCLIB provides original lyrics only.": {
+        "Choose NetEase first for supplied translations; LRCLIB provides original lyrics only.": "选择网易云优先以获取现成译文；LRCLIB 仅提供原文。"
+    },
+    "NetEase first": {
+        "NetEase first": "网易云优先"
+    },
+    "LRCLIB first": {
+        "LRCLIB first": "LRCLIB 优先"
+    },
+    "NetEase only": {
+        "NetEase only": "仅网易云"
+    },
+    "LRCLIB only": {
+        "LRCLIB only": "仅 LRCLIB"
+    },
+    "Text width (px)": {
+        "Text width (px)": "音乐组件文字宽度（像素）"
+    },
+    "Maximum width of the lyric text; longer lines scroll horizontally.": {
+        "Maximum width of the lyric text; longer lines scroll horizontally.": "歌词文字的最大宽度，超出会横向滚动。"
+    },
+    "Uses DMS's MPRIS player; tracks without synced lyrics retain the normal music widget.": {
+        "Uses DMS's MPRIS player; tracks without synced lyrics retain the normal music widget.": "通过 DMS 的 MPRIS 接口跟随播放器；无同步歌词时保留原音乐组件。"
+    },
+    "Provider translation": {
+        "Provider translation": "来源译文"
+    }
+}

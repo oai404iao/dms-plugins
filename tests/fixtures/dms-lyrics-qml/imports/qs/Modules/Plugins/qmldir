@@ -1,0 +1,4 @@
+module qs.Modules.Plugins
+PluginSettings 1.0 PluginSettings.qml
+ToggleSetting 1.0 ToggleSetting.qml
+SliderSetting 1.0 SliderSetting.qml

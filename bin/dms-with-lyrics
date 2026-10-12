@@ -1,0 +1,14 @@
+#!/bin/sh
+set -eu
+
+shell_dir="${XDG_DATA_HOME:-$HOME/.local/share}/dms-media-lyrics/current"
+unset DMS_SHELL_DIR
+if [ -f "$shell_dir/shell.qml" ] && [ -r "$shell_dir/.dms-version" ]; then
+    IFS= read -r expected_version < "$shell_dir/.dms-version"
+    if [ "$(dms version)" = "$expected_version" ]; then
+        export DMS_SHELL_DIR="$shell_dir"
+    else
+        printf '%s\n' "DMS media lyrics: version mismatch; using stock shell." >&2
+    fi
+fi
+exec dms "$@"

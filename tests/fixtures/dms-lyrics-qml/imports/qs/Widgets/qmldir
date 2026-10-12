@@ -1,0 +1,12 @@
+module qs.Widgets
+StyledText 1.0 StyledText.qml
+StyledRect 1.0 StyledRect.qml
+WindowBlur 1.0 WindowBlur.qml
+ElevationShadow 1.0 ElevationShadow.qml
+DankFlickable 1.0 DankFlickable.qml
+DankIcon 1.0 DankIcon.qml
+DankDropdown 1.0 DankDropdown.qml
+DankPopout 1.0 DankPopout.qml
+TransientSurfaceTracker 1.0 TransientSurfaceTracker.qml
+DankTabBar 1.0 DankTabBar.qml
+DankSpinner 1.0 DankSpinner.qml
