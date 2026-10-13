@@ -1,6 +1,7 @@
 # Source provenance and licenses
 
-This is a source migration, not an upstream version update.
+The source migration retained the revisions below. Subsequent Todo changes are
+local maintenance, not an upstream version update.
 
 | Source | Revision | Imported material |
 | --- | --- | --- |
@@ -13,7 +14,9 @@ The original per-component LICENSE files are preserved byte-for-byte. The root
 LICENSE covers original tooling/docs/tests and does not replace upstream notices.
 Migrated tests only change repository paths and omit chezmoi apply-hook checks;
 those remain in the dotfiles repository. Original source bytes of plugin files,
-overlay components, preparation helper, launcher and fixtures are preserved.
+overlay components, preparation helper, launcher and fixtures were preserved
+at migration. Todo `1.3.0-local.1` adds DMS translations, tree rendering,
+planned completion times and pause/resume, with offline regression fixtures.
 
 The supported DMS releases have identical `shell.qml` and the five replaced
 component hashes. Full input trees must nevertheless come from the installed

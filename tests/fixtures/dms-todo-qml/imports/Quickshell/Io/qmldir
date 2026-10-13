@@ -1,0 +1,4 @@
+module Quickshell.Io
+singleton TestIo 1.0 TestIo.qml
+FileView 1.0 FileView.qml
+IpcHandler 1.0 IpcHandler.qml

@@ -1,8 +1,9 @@
 # Dank Todo: known limitations
 
-The imported `1.2.0` source at `ff1b82c` is unchanged. It is experimental and is
-not recommended as the sole store of important tasks. This migration does not
-represent a security certification or fix these issues.
+The local `1.3.0-local.1` version is based on imported `1.2.0` at `ff1b82c`.
+It adds translations, tree rendering, time fields and pause/resume, but remains
+experimental and is not recommended as the sole store of important tasks.
+This is not a security certification.
 
 Read-only review of both QML files and DMS v1.6.3 host code, plus extracted
 JavaScript logic checks, identified:
@@ -18,10 +19,13 @@ JavaScript logic checks, identified:
   were not injected into a running desktop.
 - Reducing the text-length limit truncates existing entries on load; the next
   write persists the truncation.
-- Imported/manually edited cyclic parent IDs can loop indefinitely in the Active
-  filter on DMS's UI thread. Normal drag operations reject cycles.
-- Soft deletion while editing can discard a draft; clearing completed parents
-  can leave active children indented inconsistently until reload.
+- Soft deletion while editing cancels the draft for that item.
+
+The local loader now breaks cyclic parent references. Tree rows follow parent
+relationships rather than relying on contiguous array order; filtered views keep
+ancestor rows as context. Clearing completed parents promotes unfinished children
+to the nearest surviving ancestor. Headless QML regressions cover these paths,
+time fields and pause/resume; they do not exercise simultaneous real widget writers.
 
 The review found no explicit outbound network requests or task-text shell
 execution. Tasks are plaintext JSON. Atomic writes reduce torn-file risk but do
@@ -29,4 +33,4 @@ not provide backups, conflict resolution, or recovery guarantees.
 
 Keep independent backups of the configured Todo data directory. Prefer one
 widget instance, avoid external concurrent writers, and use noncritical tasks
-while evaluating. No Todo regression suite or full live UI audit is included.
+while evaluating. A full live-session UI audit is not included.

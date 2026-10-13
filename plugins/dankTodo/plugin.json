@@ -2,7 +2,7 @@
     "id": "dankTodo",
     "name": "Dank Todo",
     "description": "A simple locally-saved TODO list widget for the Dank bar",
-    "version": "1.2.0",
+    "version": "1.3.0-local.1",
     "license": "MIT",
     "author": "Deepu K Sasidharan",
     "icon": "checklist",

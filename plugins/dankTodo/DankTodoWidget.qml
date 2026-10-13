@@ -9,6 +9,7 @@ import qs.Modules.Plugins
 
 PluginComponent {
     id: root
+    popoutWidth: 480
 
     readonly property string defaultStorageDir: (Quickshell.env("XDG_CONFIG_HOME") || (Quickshell.env("HOME") + "/.config")) + "/dank-todo"
     readonly property string resolvedStorageDir: {
@@ -28,12 +29,13 @@ PluginComponent {
     property int maxTextLength: parseIntOr(pluginData.maxTextLength, 500, 40)
     property string countMode: {
         const v = String(pluginData.countMode || "active")
-        return (v === "total" || v === "done" || v === "hidden") ? v : "active"
+        return (v === "total" || v === "done" || v === "paused" || v === "hidden") ? v : "active"
     }
 
     property var todos: []
     property int revision: 0
     property string filter: "active"
+    property var collapsedIds: []
     readonly property int visibleCount: {
         revision
         let n = 0
@@ -48,14 +50,18 @@ PluginComponent {
         revision
         let n = 0
         for (let i = 0; i < todos.length; i++) {
-            if (!todos[i].deletedAt && !todos[i].completed)
+            if (!todos[i].deletedAt && !todos[i].completed && !todos[i].paused)
                 n++
         }
         return n
     }
     readonly property int doneCount: {
         revision
-        return visibleCount - activeCount
+        return todos.filter(t => !t.deletedAt && t.completed).length
+    }
+    readonly property int pausedCount: {
+        revision
+        return todos.filter(t => !t.deletedAt && !t.completed && t.paused).length
     }
 
     function uid() {
@@ -68,7 +74,7 @@ PluginComponent {
 
     function saveTodos() {
         const data = {
-            version: 2,
+            version: 3,
             todos: todos
         }
         todoFile.setText(JSON.stringify(data, null, 2))
@@ -83,32 +89,88 @@ PluginComponent {
         revision
         const visibleTodos = todos.filter(t => !t.deletedAt)
         if (filterKey === "active")
-            return visibleTodos.filter(t => !t.completed && !hasCompletedAncestor(t.id))
+            return visibleTodos.filter(t => !t.completed && !t.paused)
+        if (filterKey === "paused")
+            return visibleTodos.filter(t => !t.completed && t.paused)
         if (filterKey === "done")
             return visibleTodos.filter(t => t.completed)
         return visibleTodos
     }
 
-    function hasCompletedAncestor(id) {
-        let cur = todos.find(t => t.id === id)
-        while (cur && cur.parentId) {
-            cur = todos.find(t => t.id === cur.parentId)
-            if (cur && !cur.deletedAt && cur.completed)
-                return true
+    function treeRows(filterKey) {
+        revision
+        const visible = todos.filter(t => !t.deletedAt)
+        const byId = new Map(visible.map(t => [t.id, t]))
+        const matches = new Set(filteredTodos(filterKey).map(t => t.id))
+        const included = new Set(matches)
+        for (const id of matches) {
+            let task = byId.get(id)
+            while (task && task.parentId && !included.has(task.parentId)) {
+                included.add(task.parentId)
+                task = byId.get(task.parentId)
+            }
         }
-        return false
+        const children = new Map()
+        for (const task of visible) {
+            const parentId = byId.has(task.parentId) ? task.parentId : null
+            if (!children.has(parentId))
+                children.set(parentId, [])
+            children.get(parentId).push(task)
+        }
+        const rows = []
+        const visited = new Set()
+        function visit(task, depth) {
+            if (visited.has(task.id) || !included.has(task.id))
+                return
+            visited.add(task.id)
+            const childTasks = (children.get(task.id) || []).filter(t => included.has(t.id))
+            rows.push(Object.assign({}, task, {
+                depth: depth,
+                hasChildren: childTasks.length > 0,
+                contextOnly: !matches.has(task.id)
+            }))
+            if (!collapsedIds.includes(task.id))
+                childTasks.forEach(t => visit(t, depth + 1))
+        }
+        ;(children.get(null) || []).forEach(t => visit(t, 0))
+        return rows
     }
 
-    function depthOf(id) {
-        let d = 0
-        let cur = todos.find(t => t.id === id)
-        while (cur && cur.parentId) {
-            d++
-            if (d > 16)
-                return d
-            cur = todos.find(t => t.id === cur.parentId)
-        }
-        return d
+    function toggleExpanded(id) {
+        collapsedIds = collapsedIds.includes(id)
+            ? collapsedIds.filter(x => x !== id) : collapsedIds.concat([id])
+    }
+
+    // The composer accepts a local date, optionally followed by hours and minutes.
+    function parsePlannedAt(text) {
+        const value = String(text || "").trim()
+        if (!value)
+            return ""
+        const match = /^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2}))?$/.exec(value)
+        if (!match)
+            return null
+        const year = Number(match[1]), month = Number(match[2]), day = Number(match[3])
+        const hour = Number(match[4] || 0), minute = Number(match[5] || 0)
+        const date = new Date(year, month - 1, day, hour, minute)
+        if (date.getFullYear() !== year || date.getMonth() !== month - 1
+                || date.getDate() !== day || date.getHours() !== hour || date.getMinutes() !== minute)
+            return null
+        return date.toISOString()
+    }
+
+    function plannedInput(value) {
+        if (!value)
+            return ""
+        const date = new Date(value)
+        return isNaN(date.getTime()) ? "" : Qt.formatDateTime(date, "yyyy-MM-dd HH:mm")
+    }
+
+    function displayTime(value) {
+        if (!value)
+            return I18n.trFor("dankTodo", "Not set")
+        const date = new Date(value)
+        return isNaN(date.getTime()) ? I18n.trFor("dankTodo", "Not set")
+            : date.toLocaleString(I18n.locale(), "yyyy-MM-dd HH:mm")
     }
 
     function getDescendantIds(id) {
@@ -144,28 +206,31 @@ PluginComponent {
             return indices
         const descendants = getDescendantIds(id)
         indices.push(startIdx)
-        for (let i = startIdx + 1; i < todos.length; i++) {
+        for (let i = 0; i < todos.length; i++) {
             if (descendants.has(todos[i].id))
                 indices.push(i)
         }
         return indices
     }
 
-    function addTodo(text, parentId) {
+    function addTodo(text, parentId, plannedAt) {
         const trimmed = String(text || "").replace(/\s+/g, " ").trim()
         if (!trimmed.length)
             return false
         if (visibleCount >= maxItems) {
             if (typeof ToastService !== "undefined")
-                ToastService.showWarning("Max " + maxItems + " todos reached")
+                ToastService.showWarning(I18n.trFor("dankTodo", "Max %1 todos reached").arg(maxItems))
             return false
         }
         const entry = {
             id: uid(),
             text: trimmed.substring(0, maxTextLength),
             completed: false,
+            paused: false,
             parentId: parentId || null,
-            createdAt: new Date().toISOString()
+            createdAt: new Date().toISOString(),
+            plannedAt: plannedAt || null,
+            completedAt: null
         }
         if (entry.parentId) {
             // Insert right after parent so it becomes the first visible child
@@ -193,11 +258,36 @@ PluginComponent {
         const next = todos.slice()
         next[idx] = Object.assign({}, next[idx], {
             completed: !next[idx].completed,
-            completedAt: !next[idx].completed ? new Date().toISOString() : undefined
+            paused: false,
+            completedAt: !next[idx].completed ? new Date().toISOString() : null
         })
         todos = next
         revision++
         saveTodos()
+    }
+
+    function pauseTodo(id) {
+        const idx = todos.findIndex(t => t.id === id && !t.deletedAt && !t.completed)
+        if (idx === -1)
+            return
+        const next = todos.slice()
+        next[idx] = Object.assign({}, next[idx], { paused: !next[idx].paused })
+        todos = next
+        revision++
+        saveTodos()
+    }
+
+    function planTodo(id, text) {
+        const plannedAt = parsePlannedAt(text)
+        const idx = todos.findIndex(t => t.id === id && !t.deletedAt)
+        if (plannedAt === null || idx === -1)
+            return false
+        const next = todos.slice()
+        next[idx] = Object.assign({}, next[idx], { plannedAt: plannedAt || null })
+        todos = next
+        revision++
+        saveTodos()
+        return true
     }
 
     function deleteTodo(id) {
@@ -253,30 +343,9 @@ PluginComponent {
             newParentId = target.id
             insertAt = targetInRemainingIdx + 1
         } else {
-            // "after": insert after target's full subtree
+            // Tree traversal groups descendants; only sibling order matters here.
             newParentId = target.parentId || null
-            let end = targetInRemainingIdx
-            const targetDescendants = new Set()
-            let changed = true
-            while (changed) {
-                changed = false
-                for (const t of remaining) {
-                    const pid = t.parentId || null
-                    if (pid === null)
-                        continue
-                    if ((pid === target.id || targetDescendants.has(pid)) && !targetDescendants.has(t.id)) {
-                        targetDescendants.add(t.id)
-                        changed = true
-                    }
-                }
-            }
-            for (let i = targetInRemainingIdx + 1; i < remaining.length; i++) {
-                if (targetDescendants.has(remaining[i].id))
-                    end = i
-                else
-                    break
-            }
-            insertAt = end + 1
+            insertAt = targetInRemainingIdx + 1
         }
 
         // Update the root of the source block with its new parentId
@@ -291,20 +360,23 @@ PluginComponent {
         saveTodos()
     }
 
-    function editTodo(id, newText) {
+    function editTodo(id, newText, plannedAt) {
         const trimmed = String(newText || "").replace(/\s+/g, " ").trim()
         if (!trimmed.length)
-            return
+            return false
         const idx = todos.findIndex(t => t.id === id && !t.deletedAt)
         if (idx === -1)
-            return
+            return false
         const next = todos.slice()
         next[idx] = Object.assign({}, next[idx], {
             text: trimmed.substring(0, maxTextLength)
         })
+        if (plannedAt !== undefined)
+            next[idx].plannedAt = plannedAt || null
         todos = next
         revision++
         saveTodos()
+        return true
     }
 
     function clearCompleted() {
@@ -320,6 +392,17 @@ PluginComponent {
         })
         if (!changed)
             return
+        // Keep unfinished children by promoting them past cleared parents.
+        const byId = new Map(next.map(t => [t.id, t]))
+        for (const task of next) {
+            if (task.deletedAt)
+                continue
+            let parent = byId.get(task.parentId)
+            while (parent && parent.deletedAt) {
+                task.parentId = parent.parentId || null
+                parent = byId.get(task.parentId)
+            }
+        }
         todos = next
         revision++
         saveTodos()
@@ -331,6 +414,8 @@ PluginComponent {
             return String(visibleCount)
         case "done":
             return String(doneCount)
+        case "paused":
+            return String(pausedCount)
         case "hidden":
             return ""
         default:
@@ -368,9 +453,11 @@ PluginComponent {
                     id: id,
                     text: String(t.text).substring(0, root.maxTextLength),
                     completed: Boolean(t.completed),
+                    paused: !t.completed && Boolean(t.paused),
                     parentId: t.parentId || null,
-                    createdAt: t.createdAt || new Date().toISOString(),
-                    completedAt: t.completedAt,
+                    createdAt: t.createdAt || null,
+                    plannedAt: t.plannedAt || null,
+                    completedAt: t.completed ? (t.completedAt || null) : null,
                     deletedAt: t.deletedAt
                 })
             }
@@ -383,6 +470,19 @@ PluginComponent {
                 const parent = pid ? byId.get(pid) : null
                 if (pid && (!parent || parent.deletedAt))
                     clean[i].parentId = null
+            }
+            // A hand-edited cycle must not block tree traversal or drag operations.
+            for (const task of clean) {
+                const ancestors = new Set([task.id])
+                let parent = byId.get(task.parentId)
+                while (parent) {
+                    if (ancestors.has(parent.id)) {
+                        task.parentId = null
+                        break
+                    }
+                    ancestors.add(parent.id)
+                    parent = byId.get(parent.parentId)
+                }
             }
             root.todos = clean
             root.revision++
@@ -413,6 +513,15 @@ PluginComponent {
         function toggle(id: string): string {
             root.toggleTodo(id)
             return "OK"
+        }
+
+        function pause(id: string): string {
+            root.pauseTodo(id)
+            return "OK"
+        }
+
+        function plan(id: string, date: string): string {
+            return root.planTodo(id, date) ? "OK" : "FAILED"
         }
 
         function edit(id: string, text: string): string {
@@ -498,8 +607,9 @@ PluginComponent {
         PopoutComponent {
             id: popout
 
-            headerText: "Todos"
-            detailsText: root.visibleCount === 0 ? "Nothing here yet" : (root.activeCount + " active • " + root.doneCount + " done")
+            headerText: I18n.trFor("dankTodo", "Todos")
+            detailsText: root.visibleCount === 0 ? I18n.trFor("dankTodo", "Nothing here yet")
+                : I18n.trFor("dankTodo", "%1 active • %2 paused • %3 done").arg(root.activeCount).arg(root.pausedCount).arg(root.doneCount)
             showCloseButton: true
 
             onVisibleChanged: {
@@ -509,11 +619,12 @@ PluginComponent {
 
             Column {
                 id: popoutColumn
-                width: 380
+                width: 460
                 spacing: Theme.spacingM
 
                 property string addingChildOfId: ""
                 property string editingId: ""
+                property string composerError: ""
 
                 readonly property string addingChildOfText: {
                     if (!addingChildOfId)
@@ -532,7 +643,10 @@ PluginComponent {
                 function startAddingChild(parentId) {
                     editingId = ""
                     addInput.text = ""
+                    plannedInput.text = ""
+                    composerError = ""
                     addingChildOfId = parentId
+                    root.collapsedIds = root.collapsedIds.filter(id => id !== parentId)
                     addInput.forceActiveFocus()
                 }
 
@@ -543,46 +657,45 @@ PluginComponent {
                         return
                     editingId = id
                     addInput.text = t.text
+                    plannedInput.text = root.plannedInput(t.plannedAt)
+                    composerError = ""
                     addInput.selectAll()
                     addInput.forceActiveFocus()
                 }
 
                 function cancelComposer() {
-                    if (editingId) {
-                        editingId = ""
-                        addInput.text = ""
-                    } else if (addingChildOfId) {
-                        addingChildOfId = ""
-                    }
+                    editingId = ""
+                    addingChildOfId = ""
+                    addInput.text = ""
+                    plannedInput.text = ""
+                    composerError = ""
                 }
 
                 function submitComposer() {
+                    const plannedAt = root.parsePlannedAt(plannedInput.text)
+                    if (plannedAt === null) {
+                        composerError = I18n.trFor("dankTodo", "Use YYYY-MM-DD or YYYY-MM-DD HH:mm")
+                        plannedInput.forceActiveFocus()
+                        return false
+                    }
+                    let saved
                     if (editingId) {
-                        const id = editingId
-                        const newText = addInput.text
-                        editingId = ""
-                        addInput.text = ""
-                        root.editTodo(id, newText)
-                        return true
+                        saved = root.editTodo(editingId, addInput.text, plannedAt)
+                    } else {
+                        saved = root.addTodo(addInput.text, addingChildOfId || null, plannedAt)
                     }
-                    if (root.addTodo(addInput.text, addingChildOfId || null)) {
-                        addInput.text = ""
-                        addingChildOfId = ""
-                        return true
-                    }
-                    return false
+                    if (saved)
+                        cancelComposer()
+                    return saved
                 }
 
                 // Drop composer state if the referenced item disappears
                 Connections {
                     target: root
                     function onTodosChanged() {
-                        if (popoutColumn.editingId && !root.todos.find(t => t.id === popoutColumn.editingId)) {
-                            popoutColumn.editingId = ""
-                            addInput.text = ""
-                        }
-                        if (popoutColumn.addingChildOfId && !root.todos.find(t => t.id === popoutColumn.addingChildOfId))
-                            popoutColumn.addingChildOfId = ""
+                        if ((popoutColumn.editingId && !root.todos.find(t => t.id === popoutColumn.editingId && !t.deletedAt))
+                                || (popoutColumn.addingChildOfId && !root.todos.find(t => t.id === popoutColumn.addingChildOfId && !t.deletedAt)))
+                            popoutColumn.cancelComposer()
                     }
                 }
 
@@ -610,7 +723,9 @@ PluginComponent {
                         }
 
                         StyledText {
-                            text: popoutColumn.editingId ? ("Editing: " + popoutColumn.editingText) : ("Subtask of: " + popoutColumn.addingChildOfText)
+                            text: popoutColumn.editingId
+                                ? I18n.trFor("dankTodo", "Editing: %1").arg(popoutColumn.editingText)
+                                : I18n.trFor("dankTodo", "Subtask of: %1").arg(popoutColumn.addingChildOfText)
                             font.pixelSize: Theme.fontSizeSmall
                             color: Theme.primary
                             elide: Text.ElideRight
@@ -655,15 +770,15 @@ PluginComponent {
                         anchors.verticalCenter: parent.verticalCenter
                         placeholderText: {
                             if (popoutColumn.editingId)
-                                return "Edit and press Enter"
+                                return I18n.trFor("dankTodo", "Edit and press Enter")
                             if (popoutColumn.addingChildOfId)
-                                return "Subtask text and press Enter"
-                            return "Add a todo and press Enter"
+                                return I18n.trFor("dankTodo", "Subtask text and press Enter")
+                            return I18n.trFor("dankTodo", "Add a todo and press Enter")
                         }
                         maximumLength: root.maxTextLength
                         onAccepted: {
-                            popoutColumn.submitComposer()
-                            forceActiveFocus()
+                            if (popoutColumn.submitComposer())
+                                forceActiveFocus()
                         }
                         Keys.onEscapePressed: popoutColumn.cancelComposer()
                     }
@@ -690,10 +805,42 @@ PluginComponent {
                             hoverEnabled: true
                             cursorShape: Qt.PointingHandCursor
                             onClicked: {
-                                popoutColumn.submitComposer()
-                                addInput.forceActiveFocus()
+                                if (popoutColumn.submitComposer())
+                                    addInput.forceActiveFocus()
                             }
                         }
+                    }
+                }
+
+                Column {
+                    width: parent.width
+                    spacing: Theme.spacingXS
+
+                    StyledText {
+                        text: I18n.trFor("dankTodo", "Planned completion (optional, local time)")
+                        font.pixelSize: Theme.fontSizeSmall
+                        color: Theme.surfaceVariantText
+                    }
+
+                    DankTextField {
+                        id: plannedInput
+                        width: parent.width
+                        placeholderText: I18n.trFor("dankTodo", "YYYY-MM-DD HH:mm")
+                        onAccepted: {
+                            if (popoutColumn.submitComposer())
+                                addInput.forceActiveFocus()
+                        }
+                        Keys.onEscapePressed: popoutColumn.cancelComposer()
+                        onTextChanged: popoutColumn.composerError = ""
+                    }
+
+                    StyledText {
+                        width: parent.width
+                        visible: popoutColumn.composerError !== ""
+                        text: popoutColumn.composerError
+                        font.pixelSize: Theme.fontSizeSmall
+                        color: Theme.error
+                        wrapMode: Text.WordWrap
                     }
                 }
 
@@ -702,23 +849,28 @@ PluginComponent {
                     width: parent.width
                     spacing: Theme.spacingXS
 
-                    property real chipWidth: (width - spacing * 2) / 3
+                    property real chipWidth: (width - spacing * 3) / 4
 
                     Repeater {
                         model: [
                             {
                                 key: "active",
-                                label: "Active",
+                                label: I18n.trFor("dankTodo", "Active"),
                                 count: root.activeCount
                             },
                             {
+                                key: "paused",
+                                label: I18n.trFor("dankTodo", "Paused"),
+                                count: root.pausedCount
+                            },
+                            {
                                 key: "all",
-                                label: "All",
+                                label: I18n.trFor("dankTodo", "All"),
                                 count: root.visibleCount
                             },
                             {
                                 key: "done",
-                                label: "Done",
+                                label: I18n.trFor("dankTodo", "Done"),
                                 count: root.doneCount
                             }
                         ]
@@ -762,10 +914,10 @@ PluginComponent {
                         id: todoList
                         anchors.fill: parent
                         spacing: Theme.spacingXS
-                        clip: false
+                        clip: true
                         interactive: listContainer.dragId === ""
                         model: {
-                            return root.filteredTodos(root.filter)
+                            return root.treeRows(root.filter)
                         }
 
                         displaced: Transition {
@@ -797,11 +949,11 @@ PluginComponent {
                         delegate: Item {
                             id: slot
                             width: todoList.width - (todoScrollBar.visible ? (todoScrollBar.width + Theme.spacingS) : 0)
-                            height: Math.max(36, todoText.implicitHeight + Theme.spacingS * 2)
+                            height: Math.max(36, taskContent.implicitHeight + Theme.spacingS * 2)
 
                             property var itemData: modelData
                             property string itemId: modelData ? modelData.id : ""
-                            property int depth: modelData ? root.depthOf(modelData.id) : 0
+                            property int depth: modelData ? modelData.depth : 0
                             property string dropZone: ""
                             readonly property bool isDragSource: listContainer.dragId === slot.itemId
                             readonly property bool acceptsDrag: {
@@ -825,7 +977,7 @@ PluginComponent {
 
                             Rectangle {
                                 id: card
-                                x: slot.depth * listContainer.indentStep
+                                x: Math.min(slot.depth, 5) * listContainer.indentStep
                                 y: 0
                                 width: dragProxy.width - x
                                 height: dragProxy.height
@@ -891,27 +1043,104 @@ PluginComponent {
                                     }
 
                                     DankIcon {
+                                        id: expandIcon
+                                        name: modelData.hasChildren
+                                            ? (root.collapsedIds.includes(modelData.id) ? "chevron_right" : "expand_more")
+                                            : "subdirectory_arrow_right"
+                                        size: 16
+                                        opacity: modelData.hasChildren ? 1 : (slot.depth > 0 ? 0.4 : 0)
+                                        color: Theme.surfaceVariantText
+                                        anchors.verticalCenter: parent.verticalCenter
+
+                                        MouseArea {
+                                            id: expandArea
+                                            anchors.fill: parent
+                                            enabled: modelData.hasChildren
+                                            hoverEnabled: true
+                                            cursorShape: Qt.PointingHandCursor
+                                            onClicked: root.toggleExpanded(modelData.id)
+                                        }
+                                        ToolTip.visible: expandArea.containsMouse && modelData.hasChildren
+                                        ToolTip.text: root.collapsedIds.includes(modelData.id)
+                                            ? I18n.trFor("dankTodo", "Expand subtasks") : I18n.trFor("dankTodo", "Collapse subtasks")
+                                    }
+
+                                    DankIcon {
                                         id: checkIcon
-                                        name: modelData.completed ? "check_circle" : "radio_button_unchecked"
+                                        name: modelData.completed ? "check_circle" : (modelData.paused ? "pause_circle" : "radio_button_unchecked")
                                         size: 18
                                         color: modelData.completed ? Theme.primary : Theme.surfaceVariantText
                                         anchors.verticalCenter: parent.verticalCenter
 
                                         MouseArea {
+                                            id: checkArea
                                             anchors.fill: parent
+                                            hoverEnabled: true
                                             cursorShape: Qt.PointingHandCursor
                                             onClicked: root.toggleTodo(modelData.id)
                                         }
+                                        ToolTip.visible: checkArea.containsMouse
+                                        ToolTip.text: modelData.completed
+                                            ? I18n.trFor("dankTodo", "Reopen") : I18n.trFor("dankTodo", "Complete")
                                     }
 
-                                    StyledText {
-                                        id: todoText
-                                        width: parent.width - (dragHandle.visible ? (dragHandle.width + Theme.spacingS) : 0) - checkIcon.width - editBtn.width - addChildBtn.width - deleteBtn.width - Theme.spacingS * 4
-                                        text: modelData.text
-                                        color: modelData.completed ? Theme.surfaceVariantText : Theme.surfaceText
-                                        font.strikeout: modelData.completed
-                                        wrapMode: Text.WordWrap
+                                    Column {
+                                        id: taskContent
+                                        width: parent.width - dragHandle.width - expandIcon.width - checkIcon.width
+                                            - pauseBtn.width - editBtn.width - addChildBtn.width - deleteBtn.width - Theme.spacingS * 7
+                                        spacing: 2
+                                        opacity: modelData.contextOnly ? 0.6 : 1
                                         anchors.verticalCenter: parent.verticalCenter
+
+                                        StyledText {
+                                            id: todoText
+                                            width: parent.width
+                                            text: modelData.text
+                                            color: modelData.completed || modelData.paused ? Theme.surfaceVariantText : Theme.surfaceText
+                                            font.strikeout: modelData.completed
+                                            wrapMode: Text.WordWrap
+                                        }
+
+                                        StyledText {
+                                            width: parent.width
+                                            text: [
+                                                I18n.trFor("dankTodo", "Created: %1").arg(root.displayTime(modelData.createdAt)),
+                                                I18n.trFor("dankTodo", "Planned: %1").arg(root.displayTime(modelData.plannedAt)),
+                                                I18n.trFor("dankTodo", "Completed: %1").arg(root.displayTime(modelData.completedAt))
+                                            ].join("\n")
+                                            font.pixelSize: Theme.fontSizeSmall * 0.85
+                                            color: Theme.surfaceVariantText
+                                            wrapMode: Text.WordWrap
+                                        }
+                                    }
+
+                                    Rectangle {
+                                        id: pauseBtn
+                                        width: 26
+                                        height: 26
+                                        radius: 13
+                                        opacity: modelData.completed ? 0.3 : 1
+                                        color: pauseArea.containsMouse ? Qt.rgba(Theme.primary.r, Theme.primary.g, Theme.primary.b, 0.2) : "transparent"
+                                        anchors.verticalCenter: parent.verticalCenter
+
+                                        DankIcon {
+                                            anchors.centerIn: parent
+                                            name: modelData.paused ? "play_arrow" : "pause"
+                                            size: 16
+                                            color: Theme.surfaceVariantText
+                                        }
+
+                                        MouseArea {
+                                            id: pauseArea
+                                            anchors.fill: parent
+                                            enabled: !modelData.completed
+                                            hoverEnabled: true
+                                            cursorShape: Qt.PointingHandCursor
+                                            onClicked: root.pauseTodo(modelData.id)
+                                        }
+                                        ToolTip.visible: pauseArea.containsMouse && !modelData.completed
+                                        ToolTip.text: modelData.paused
+                                            ? I18n.trFor("dankTodo", "Resume") : I18n.trFor("dankTodo", "Pause")
                                     }
 
                                     Rectangle {
@@ -936,6 +1165,8 @@ PluginComponent {
                                             cursorShape: Qt.PointingHandCursor
                                             onClicked: popoutColumn.startEditing(modelData.id)
                                         }
+                                        ToolTip.visible: editArea.containsMouse
+                                        ToolTip.text: I18n.trFor("dankTodo", "Edit")
                                     }
 
                                     Rectangle {
@@ -960,6 +1191,8 @@ PluginComponent {
                                             cursorShape: Qt.PointingHandCursor
                                             onClicked: popoutColumn.startAddingChild(modelData.id)
                                         }
+                                        ToolTip.visible: addChildArea.containsMouse
+                                        ToolTip.text: I18n.trFor("dankTodo", "Add subtask")
                                     }
 
                                     Rectangle {
@@ -984,6 +1217,8 @@ PluginComponent {
                                             cursorShape: Qt.PointingHandCursor
                                             onClicked: root.deleteTodo(modelData.id)
                                         }
+                                        ToolTip.visible: deleteArea.containsMouse
+                                        ToolTip.text: I18n.trFor("dankTodo", "Delete")
                                     }
                                 }
 
@@ -1055,10 +1290,12 @@ PluginComponent {
                             visible: todoList.count === 0
                             text: {
                                 if (root.filter === "active")
-                                    return "No active todos"
+                                    return I18n.trFor("dankTodo", "No active todos")
+                                if (root.filter === "paused")
+                                    return I18n.trFor("dankTodo", "No paused todos")
                                 if (root.filter === "done")
-                                    return "No completed todos"
-                                return "No todos yet"
+                                    return I18n.trFor("dankTodo", "No completed todos")
+                                return I18n.trFor("dankTodo", "No todos yet")
                             }
                             color: Theme.surfaceVariantText
                             font.pixelSize: Theme.fontSizeSmall
@@ -1085,7 +1322,7 @@ PluginComponent {
                         StyledText {
                             id: clearLabel
                             anchors.centerIn: parent
-                            text: "Clear completed"
+                            text: I18n.trFor("dankTodo", "Clear completed")
                             font.pixelSize: Theme.fontSizeSmall
                             color: Theme.surfaceText
                         }

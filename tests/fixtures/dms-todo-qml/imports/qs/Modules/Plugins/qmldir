@@ -1,0 +1,5 @@
+module qs.Modules.Plugins
+PluginComponent 1.0 PluginComponent.qml
+PopoutComponent 1.0 PopoutComponent.qml
+PluginSettings 1.0 PluginSettings.qml
+StringSetting 1.0 StringSetting.qml

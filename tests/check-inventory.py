@@ -1,4 +1,5 @@
 import json
+import re
 from pathlib import Path
 
 repo = Path(__file__).resolve().parents[1]
@@ -10,6 +11,7 @@ inventories = {
     "dankTodo": {
         "LICENSE", "README.md", "screenshot.png", "plugin.json",
         "DankTodoWidget.qml", "DankTodoSettings.qml",
+        "translations/zh_CN.json",
     },
 }
 
@@ -43,7 +45,15 @@ for name, expected in inventories.items():
     else:
         assert manifest["type"] == "widget"
         assert manifest["capabilities"] == ["dankbar-widget"]
-        assert manifest["version"] == "1.2.0"
+        assert manifest["version"] == "1.3.0-local.1"
+        translations = json.loads((directory / "translations/zh_CN.json").read_text())
+        terms = set()
+        for source in directory.glob("*.qml"):
+            terms.update(re.findall(r'I18n\.trFor\("dankTodo", "([^"]+)"\)', source.read_text()))
+        assert terms == set(translations), (terms - set(translations), set(translations) - terms)
+        for term in terms:
+            assert translations[term][term]
+            assert sorted(re.findall(r"%\d+", term)) == sorted(re.findall(r"%\d+", translations[term][term]))
 for path in (repo / "plugins").rglob("*.json"):
     json.loads(path.read_text(), object_pairs_hook=unique_object)
 print("Plugin manifest and exact source inventory checks passed")

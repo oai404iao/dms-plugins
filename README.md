@@ -8,7 +8,7 @@ Maintained source monorepo for `oai404iao/dms-plugins`. Each directory under
 | Component | Role |
 | --- | --- |
 | `plugins/lyrics` | Shared bilingual lyrics daemon, locally maintained version `0.4.0-local.1` |
-| `plugins/dankTodo` | Dank Todo `1.2.0`, imported unchanged; read the [known risks](docs/todo-audit.md) |
+| `plugins/dankTodo` | Locally maintained Dank Todo `1.3.0-local.1`: translated tree tasks, dates and pause; read the [known risks](docs/todo-audit.md) |
 | `scripts/dms-media-lyrics` | Version-pinned native media bar/page overlay |
 | `scripts/prepare-dms-media-lyrics.py` | Offline preparation of a separate shell tree |
 | `bin/dms-with-lyrics` | Version-matched launcher with stock-DMS fallback |
@@ -20,7 +20,7 @@ Dotfiles/chezmoi owns desktop configuration, not a second copy of these sources.
 DMS enablement, bar layout, preferences, plugin lockfiles, caches, credentials,
 and `~/.config/dank-todo/todos.json` remain machine-local. Never commit them.
 See [provenance and licenses](docs/provenance.md); upstream licenses are retained.
-This migration preserves plugin/overlay source behavior and does not fix Todo bugs.
+Todo is locally maintained; see its [usage and data format](plugins/dankTodo/README.md).
 
 The lyrics daemon queries NetEase and LRCLIB using playback metadata, with no
 API key or AI service. Provider availability and translations are not guaranteed.
@@ -116,7 +116,7 @@ Old lockfile entries are not rewritten by the installer.
 
 `sh tests/check-source.sh` runs manifest/inventory and isolated safe-installer
 checks, lyrics JavaScript tests, headless Qt 6 QML fixtures, overlay preparation,
-and launcher fallback tests. All are offline: no real provider requests, model
+Todo tree/date/status QML regressions, and launcher fallback tests. All are offline: no real provider requests, model
 calls, desktop changes, or notification sends. Node or Qt 6 tests explicitly skip
 when their tools are absent. Python fixtures and QML workspaces are retained under
 `~/.local/state/agents/tmp`. These tests do not establish Todo runtime reliability

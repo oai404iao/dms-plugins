@@ -1,0 +1,152 @@
+{
+    "Dank Todo Settings": {
+        "Dank Todo Settings": "Dank 待办设置"
+    },
+    "A local, JSON-backed todo list for the Dank bar": {
+        "A local, JSON-backed todo list for the Dank bar": "用于 Dank 栏的本地待办列表，以 JSON 文件存储"
+    },
+    "Storage": {
+        "Storage": "存储"
+    },
+    "Storage directory": {
+        "Storage directory": "存储目录"
+    },
+    "Todos are stored in todos.json inside this directory. Leave empty to use the default.": {
+        "Todos are stored in todos.json inside this directory. Leave empty to use the default.": "待办保存在此目录中的 todos.json 文件里。留空使用默认目录。"
+    },
+    "Display": {
+        "Display": "显示"
+    },
+    "Bar pill count": {
+        "Bar pill count": "栏内显示的数量"
+    },
+    "Active": {
+        "Active": "进行中"
+    },
+    "Paused": {
+        "Paused": "已暂停"
+    },
+    "Total": {
+        "Total": "全部"
+    },
+    "Done": {
+        "Done": "已完成"
+    },
+    "Hidden": {
+        "Hidden": "隐藏"
+    },
+    "Which number to show next to the todo icon in the bar.": {
+        "Which number to show next to the todo icon in the bar.": "选择在栏内待办图标旁显示哪种数量。"
+    },
+    "Limits": {
+        "Limits": "限制"
+    },
+    "Maximum todos": {
+        "Maximum todos": "待办数量上限"
+    },
+    "Maximum number of stored todos": {
+        "Maximum number of stored todos": "最多保存的待办数量"
+    },
+    "Maximum characters per todo": {
+        "Maximum characters per todo": "每条待办的字符数上限"
+    },
+    "Longer entries will be truncated when added": {
+        "Longer entries will be truncated when added": "添加时会截断超出长度的内容"
+    },
+    "IPC commands": {
+        "IPC commands": "IPC 命令"
+    },
+    "Not set": {
+        "Not set": "未设置"
+    },
+    "Max %1 todos reached": {
+        "Max %1 todos reached": "已达到 %1 条待办的上限"
+    },
+    "Todos": {
+        "Todos": "待办"
+    },
+    "Nothing here yet": {
+        "Nothing here yet": "还没有待办"
+    },
+    "%1 active • %2 paused • %3 done": {
+        "%1 active • %2 paused • %3 done": "%1 进行中 • %2 已暂停 • %3 已完成"
+    },
+    "Use YYYY-MM-DD or YYYY-MM-DD HH:mm": {
+        "Use YYYY-MM-DD or YYYY-MM-DD HH:mm": "请输入 YYYY-MM-DD 或 YYYY-MM-DD HH:mm 格式"
+    },
+    "Editing: %1": {
+        "Editing: %1": "编辑：%1"
+    },
+    "Subtask of: %1": {
+        "Subtask of: %1": "子任务所属：%1"
+    },
+    "Edit and press Enter": {
+        "Edit and press Enter": "编辑后按回车保存"
+    },
+    "Subtask text and press Enter": {
+        "Subtask text and press Enter": "输入子任务，按回车添加"
+    },
+    "Add a todo and press Enter": {
+        "Add a todo and press Enter": "输入待办，按回车添加"
+    },
+    "Planned completion (optional, local time)": {
+        "Planned completion (optional, local time)": "计划完成时间（选填，本地时间）"
+    },
+    "YYYY-MM-DD HH:mm": {
+        "YYYY-MM-DD HH:mm": "YYYY-MM-DD HH:mm"
+    },
+    "All": {
+        "All": "全部"
+    },
+    "Expand subtasks": {
+        "Expand subtasks": "展开子任务"
+    },
+    "Collapse subtasks": {
+        "Collapse subtasks": "收起子任务"
+    },
+    "Reopen": {
+        "Reopen": "重新打开"
+    },
+    "Complete": {
+        "Complete": "标记完成"
+    },
+    "Created: %1": {
+        "Created: %1": "创建：%1"
+    },
+    "Planned: %1": {
+        "Planned: %1": "计划：%1"
+    },
+    "Completed: %1": {
+        "Completed: %1": "完成：%1"
+    },
+    "Resume": {
+        "Resume": "继续"
+    },
+    "Pause": {
+        "Pause": "暂停"
+    },
+    "Edit": {
+        "Edit": "编辑"
+    },
+    "Add subtask": {
+        "Add subtask": "添加子任务"
+    },
+    "Delete": {
+        "Delete": "删除"
+    },
+    "No active todos": {
+        "No active todos": "没有进行中的待办"
+    },
+    "No paused todos": {
+        "No paused todos": "没有已暂停的待办"
+    },
+    "No completed todos": {
+        "No completed todos": "没有已完成的待办"
+    },
+    "No todos yet": {
+        "No todos yet": "还没有待办"
+    },
+    "Clear completed": {
+        "Clear completed": "清除已完成"
+    }
+}

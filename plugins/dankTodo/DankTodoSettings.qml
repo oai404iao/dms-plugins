@@ -12,7 +12,7 @@ PluginSettings {
 
     StyledText {
         width: parent.width
-        text: "Dank Todo Settings"
+        text: I18n.trFor("dankTodo", "Dank Todo Settings")
         font.pixelSize: Theme.fontSizeLarge
         font.weight: Font.Bold
         color: Theme.surfaceText
@@ -20,7 +20,7 @@ PluginSettings {
 
     StyledText {
         width: parent.width
-        text: "A local, JSON-backed todo list for the Dank bar"
+        text: I18n.trFor("dankTodo", "A local, JSON-backed todo list for the Dank bar")
         font.pixelSize: Theme.fontSizeSmall
         color: Theme.surfaceVariantText
         wrapMode: Text.WordWrap
@@ -39,7 +39,7 @@ PluginSettings {
             spacing: Theme.spacingM
 
             StyledText {
-                text: "Storage"
+                text: I18n.trFor("dankTodo", "Storage")
                 font.pixelSize: Theme.fontSizeMedium
                 font.weight: Font.Medium
                 color: Theme.surfaceText
@@ -50,7 +50,7 @@ PluginSettings {
                 spacing: 6
 
                 StyledText {
-                    text: "Storage directory"
+                    text: I18n.trFor("dankTodo", "Storage directory")
                     font.pixelSize: Theme.fontSizeSmall
                     color: Theme.surfaceText
                 }
@@ -65,7 +65,7 @@ PluginSettings {
 
                 StyledText {
                     width: parent.width
-                    text: "Todos are stored in todos.json inside this directory. Leave empty to use the default."
+                    text: I18n.trFor("dankTodo", "Todos are stored in todos.json inside this directory. Leave empty to use the default.")
                     font.pixelSize: Theme.fontSizeSmall * 0.9
                     opacity: 0.6
                     wrapMode: Text.WordWrap
@@ -87,7 +87,7 @@ PluginSettings {
             spacing: Theme.spacingM
 
             StyledText {
-                text: "Display"
+                text: I18n.trFor("dankTodo", "Display")
                 font.pixelSize: Theme.fontSizeMedium
                 font.weight: Font.Medium
                 color: Theme.surfaceText
@@ -98,7 +98,7 @@ PluginSettings {
                 spacing: 6
 
                 StyledText {
-                    text: "Bar pill count"
+                    text: I18n.trFor("dankTodo", "Bar pill count")
                     font.pixelSize: Theme.fontSizeSmall
                     color: Theme.surfaceText
                 }
@@ -109,25 +109,29 @@ PluginSettings {
                     spacing: Theme.spacingXS
 
                     property string currentMode: root.loadValue("countMode", "active")
-                    property real chipWidth: (width - spacing * 3) / 4
+                    property real chipWidth: (width - spacing * 4) / 5
 
                     Repeater {
                         model: [
                             {
                                 key: "active",
-                                label: "Active"
+                                label: I18n.trFor("dankTodo", "Active")
+                            },
+                            {
+                                key: "paused",
+                                label: I18n.trFor("dankTodo", "Paused")
                             },
                             {
                                 key: "total",
-                                label: "Total"
+                                label: I18n.trFor("dankTodo", "Total")
                             },
                             {
                                 key: "done",
-                                label: "Done"
+                                label: I18n.trFor("dankTodo", "Done")
                             },
                             {
                                 key: "hidden",
-                                label: "Hidden"
+                                label: I18n.trFor("dankTodo", "Hidden")
                             }
                         ]
 
@@ -162,7 +166,7 @@ PluginSettings {
 
                 StyledText {
                     width: parent.width
-                    text: "Which number to show next to the todo icon in the bar."
+                    text: I18n.trFor("dankTodo", "Which number to show next to the todo icon in the bar.")
                     font.pixelSize: Theme.fontSizeSmall * 0.9
                     opacity: 0.6
                     wrapMode: Text.WordWrap
@@ -184,7 +188,7 @@ PluginSettings {
             spacing: Theme.spacingM
 
             StyledText {
-                text: "Limits"
+                text: I18n.trFor("dankTodo", "Limits")
                 font.pixelSize: Theme.fontSizeMedium
                 font.weight: Font.Medium
                 color: Theme.surfaceText
@@ -192,16 +196,16 @@ PluginSettings {
 
             StringSetting {
                 settingKey: "maxItems"
-                label: "Maximum todos"
-                description: "Maximum number of stored todos"
+                label: I18n.trFor("dankTodo", "Maximum todos")
+                description: I18n.trFor("dankTodo", "Maximum number of stored todos")
                 placeholder: "200"
                 defaultValue: "200"
             }
 
             StringSetting {
                 settingKey: "maxTextLength"
-                label: "Maximum characters per todo"
-                description: "Longer entries will be truncated when added"
+                label: I18n.trFor("dankTodo", "Maximum characters per todo")
+                description: I18n.trFor("dankTodo", "Longer entries will be truncated when added")
                 placeholder: "500"
                 defaultValue: "500"
             }
@@ -231,7 +235,7 @@ PluginSettings {
                 }
 
                 StyledText {
-                    text: "IPC commands"
+                    text: I18n.trFor("dankTodo", "IPC commands")
                     font.pixelSize: Theme.fontSizeMedium
                     font.weight: Font.Medium
                     color: Theme.surfaceText
@@ -241,7 +245,7 @@ PluginSettings {
 
             StyledText {
                 width: parent.width
-                text: "dms ipc call dankTodo add \"Buy milk\"\ndms ipc call dankTodo toggle <id>\ndms ipc call dankTodo remove <id>\ndms ipc call dankTodo clearDone\ndms ipc call dankTodo list\ndms ipc call dankTodo count"
+                text: "dms ipc call dankTodo add \"Buy milk\"\ndms ipc call dankTodo toggle <id>\ndms ipc call dankTodo pause <id>\ndms ipc call dankTodo plan <id> \"2026-05-01\"\ndms ipc call dankTodo remove <id>\ndms ipc call dankTodo clearDone\ndms ipc call dankTodo list\ndms ipc call dankTodo count"
                 font.pixelSize: Theme.fontSizeSmall
                 font.family: "monospace"
                 color: Theme.surfaceVariantText

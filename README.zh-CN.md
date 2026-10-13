@@ -8,7 +8,7 @@
 | 组件 | 职责 |
 | --- | --- |
 | `plugins/lyrics` | 共享双语歌词守护插件，本地维护版本 `0.4.0-local.1` |
-| `plugins/dankTodo` | 原样导入的 Dank Todo `1.2.0`；请先读[已知风险](docs/todo-audit.md) |
+| `plugins/dankTodo` | 本地维护的 Dank Todo `1.3.0-local.1`：中文、树形子任务、时间与暂停；请先读[已知风险](docs/todo-audit.md) |
 | `scripts/dms-media-lyrics` | 锁定版本的原生媒体栏与媒体页覆盖层 |
 | `scripts/prepare-dms-media-lyrics.py` | 离线准备独立 shell 副本 |
 | `bin/dms-with-lyrics` | 版本匹配的启动器，不匹配时回退原版 DMS |
@@ -18,8 +18,8 @@
 本仓库管理插件源码、覆盖层、启动器、安装器和测试。Dotfiles/chezmoi 管理桌面
 配置，不再保留另一份这些源码。DMS 启用状态、顶栏布局、偏好、插件锁文件、
 缓存、凭据和 `~/.config/dank-todo/todos.json` 属于机器本地状态，不应提交。
-上游许可证保留，详见[来源与许可证](docs/provenance.md)。本次迁移保留插件及
-覆盖层原有行为，不修复 Todo 缺陷。
+上游许可证保留，详见[来源与许可证](docs/provenance.md)。Todo 在本地继续维护，
+用法及数据格式见[插件说明](plugins/dankTodo/README.md)。
 
 歌词守护插件使用播放元数据查询网易云和 LRCLIB，不需要 API 密钥或 AI 服务。
 供应商可用性和翻译覆盖率不作保证。它不是独立顶栏组件，而是通过准备好的覆盖层
@@ -102,7 +102,8 @@ ID，但源码由此仓库而非注册表管理。安装器不会改写已有锁
 ## 验证
 
 `sh tests/check-source.sh` 运行清单与精确文件 inventory 检查、隔离的安全安装测试、
-歌词 JavaScript 测试、无界面的 Qt 6 QML 测试、覆盖层准备及启动器回退测试。
+歌词 JavaScript 测试、无界面的 Qt 6 QML 测试（含 Todo 树形、时间和状态回归）、
+覆盖层准备及启动器回退测试。
 全部离线，不请求真实歌词供应商、不调用模型、不改变桌面、不发送通知。
 缺少 Node 或 Qt 6 时对应测试会明确跳过。Python 和 QML 测试工作区保留在
 `~/.local/state/agents/tmp`。这些测试不代表 Todo 运行可靠性，也不是完整真实会话测试。
