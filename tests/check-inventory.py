@@ -11,6 +11,7 @@ inventories = {
     "dankTodo": {
         "LICENSE", "README.md", "screenshot.png", "plugin.json",
         "DankTodoWidget.qml", "DankTodoSettings.qml",
+        "LinearService.qml", "LinearApi.js",
         "translations/zh_CN.json",
     },
 }
@@ -43,9 +44,15 @@ for name, expected in inventories.items():
         assert schema["showTranslation"]["default"] is True
         assert schema["translationLanguage"]["default"] == "source"
     else:
-        assert manifest["type"] == "widget"
+        assert manifest["type"] == "composite"
         assert manifest["capabilities"] == ["dankbar-widget"]
-        assert manifest["version"] == "1.3.0-local.1"
+        assert manifest["version"] == "2.0.0-local.1"
+        assert manifest["components"] == {
+            "widget": "./DankTodoWidget.qml", "daemon": "./LinearService.qml"
+        }
+        for component in manifest["components"].values():
+            assert (directory / component).is_file()
+        assert "network" in manifest["permissions"]
         translations = json.loads((directory / "translations/zh_CN.json").read_text())
         terms = set()
         for source in directory.glob("*.qml"):

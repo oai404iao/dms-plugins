@@ -3,3 +3,4 @@ StyledText 1.0 StyledText.qml
 StyledRect 1.0 StyledRect.qml
 DankIcon 1.0 DankIcon.qml
 DankTextField 1.0 DankTextField.qml
+DankButton 1.0 DankButton.qml

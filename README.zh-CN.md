@@ -8,7 +8,7 @@
 | 组件 | 职责 |
 | --- | --- |
 | `plugins/lyrics` | 共享双语歌词守护插件，本地维护版本 `0.4.0-local.1` |
-| `plugins/dankTodo` | 本地维护的 Dank Todo `1.3.0-local.1`：中文、树形子任务、时间与暂停；请先读[已知风险](docs/todo-audit.md) |
+| `plugins/dankTodo` | Dank Todo `2.0.0-local.1`：对接我的 Linear 任务、原生状态与子任务；请先读[配置说明](plugins/dankTodo/README.md)和[已知限制](docs/todo-audit.md) |
 | `scripts/dms-media-lyrics` | 锁定版本的原生媒体栏与媒体页覆盖层 |
 | `scripts/prepare-dms-media-lyrics.py` | 离线准备独立 shell 副本 |
 | `bin/dms-with-lyrics` | 版本匹配的启动器，不匹配时回退原版 DMS |
@@ -17,7 +17,8 @@
 
 本仓库管理插件源码、覆盖层、启动器、安装器和测试。Dotfiles/chezmoi 管理桌面
 配置，不再保留另一份这些源码。DMS 启用状态、顶栏布局、偏好、插件锁文件、
-缓存、凭据和 `~/.config/dank-todo/todos.json` 属于机器本地状态，不应提交。
+缓存、凭据和 Linear API Key 属于机器本地状态，不应提交。Linear 重写版不会读写
+已有的 `~/.config/dank-todo/todos.json`。
 上游许可证保留，详见[来源与许可证](docs/provenance.md)。Todo 在本地继续维护，
 用法及数据格式见[插件说明](plugins/dankTodo/README.md)。
 
@@ -83,9 +84,9 @@ dms ipc call plugins enable dankTodo
 ```
 
 等待扫描完成再启用。在设置 → DankBar 中将 **Dank Todo** 加到一个顶栏分区。
-不要把歌词守护插件当作顶栏组件添加。偏好仍由 DMS 保存。Todo 默认数据路径为
-`$XDG_CONFIG_HOME/dank-todo/todos.json`，可在插件设置中修改。请将 Todo 视为实验性
-插件，尤其留意多屏情况，并独立备份数据。
+不要把歌词守护插件当作顶栏组件添加。偏好仍由 DMS 保存。Todo 需配置私有的
+Linear API Key 文件，详见[配置说明](plugins/dankTodo/README.md)；任务数据保存在
+Linear，不再读取本地待办文件，也不会自动迁移旧任务。
 
 更新并审核此 Git 仓库，运行离线检查，再明确执行重载：
 
@@ -102,7 +103,7 @@ ID，但源码由此仓库而非注册表管理。安装器不会改写已有锁
 ## 验证
 
 `sh tests/check-source.sh` 运行清单与精确文件 inventory 检查、隔离的安全安装测试、
-歌词 JavaScript 测试、无界面的 Qt 6 QML 测试（含 Todo 树形、时间和状态回归）、
+歌词 JavaScript 测试、Todo 模拟 GraphQL 测试、无界面的 Qt 6 QML 测试、
 覆盖层准备及启动器回退测试。
 全部离线，不请求真实歌词供应商、不调用模型、不改变桌面、不发送通知。
 缺少 Node 或 Qt 6 时对应测试会明确跳过。Python 和 QML 测试工作区保留在

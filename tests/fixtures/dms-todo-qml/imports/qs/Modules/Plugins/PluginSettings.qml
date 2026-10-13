@@ -1,5 +1,6 @@
 import QtQuick
 import qs.Common
+import qs.Services
 
 Column {
     property string pluginId: ""
@@ -13,5 +14,8 @@ Column {
         var next = Object.assign({}, values);
         next[key] = value;
         values = next;
+        var all = Object.assign({}, SettingsData.pluginSettings);
+        all[pluginId] = next;
+        SettingsData.pluginSettings = all;
     }
 }

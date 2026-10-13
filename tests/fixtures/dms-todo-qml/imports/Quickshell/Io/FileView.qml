@@ -11,6 +11,7 @@ QtObject {
     property int writeCount: 0
     signal loaded()
     signal loadFailed(int error)
+    signal fileChanged()
     function text() { return contents; }
     function setText(value) { contents = value; writeCount++; }
     function reload() { reloadCount++; }

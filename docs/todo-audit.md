@@ -1,36 +1,37 @@
-# Dank Todo: known limitations
+# Dank Todo: Linear rewrite and limits
 
-The local `1.3.0-local.1` version is based on imported `1.2.0` at `ff1b82c`.
-It adds translations, tree rendering, time fields and pause/resume, but remains
-experimental and is not recommended as the sole store of important tasks.
-This is not a security certification.
+`2.0.0-local.1` replaces the local JSON TODO implementation with a focused Linear
+client. The original MIT license and plugin ID are retained. Existing task files
+are not opened, uploaded or changed.
 
-Read-only review of both QML files and DMS v1.6.3 host code, plus extracted
-JavaScript logic checks, identified:
+The shared daemon keeps one in-memory snapshot and serializes requests across bar
+instances. Task writes go through Linear's GraphQL API and are acknowledged by the
+server before the composer reports success. There is no offline write queue,
+local task-file writer, or automatic mutation retry.
 
-- Invalid JSON is treated as an empty list. The next modification can overwrite
-  damaged data instead of protecting it for recovery.
-- Every widget instance owns a private list and writes the entire file.
-  Multiple screens/bars can overwrite changes with stale snapshots. Opening a
-  popout reloads data, mitigating sequential GUI usage, not concurrent writers.
-  Actual simultaneous-window behavior and duplicate IPC routing were not tested.
-- Writes are asynchronous and have no save-failure handler; reported UI/IPC
-  success does not confirm durable storage. Real disk-full/permission failures
-  were not injected into a running desktop.
-- Reducing the text-length limit truncates existing entries on load; the next
-  write persists the truncation.
-- Soft deletion while editing cancels the draft for that item.
+## Remaining limits
 
-The local loader now breaks cyclic parent references. Tree rows follow parent
-relationships rather than relying on contiguous array order; filtered views keep
-ancestor rows as context. Clearing completed parents promotes unfinished children
-to the nearest surviving ancestor. Headless QML regressions cover these paths,
-time fields and pause/resume; they do not exercise simultaneous real widget writers.
+- A request timeout or lost response does not prove a mutation failed. Refresh
+  and check Linear before repeating a create request.
+- A failed refresh retains the previous snapshot and shows an error. Manual
+  refresh and popout opening refresh it; there is no polling or webhook listener.
+- Only non-archived issues assigned to the authenticated user are listed.
+  Ancestors are read for context, not made editable. Other people's sub-issues
+  are not fetched as your tasks.
+- Credential files must be protected by the user. The plugin reads a key into
+  memory and does not enforce file modes or provide encrypted credential storage.
+  The key path, not the key, is stored in DMS settings.
+- Changing authenticated users blocks an existing draft until explicit
+  cancellation, preventing a draft from being submitted under a new account.
+- Workflow behavior belongs to Linear, including team-specific states and
+  parent/sub-issue automation. There is no independently maintained pause state.
+- Headless tests use stub IO and mocked GraphQL replies. They do not verify real
+  account permissions, API availability, rate-limit timing, or live DMS layout.
 
-The review found no explicit outbound network requests or task-text shell
-execution. Tasks are plaintext JSON. Atomic writes reduce torn-file risk but do
-not provide backups, conflict resolution, or recovery guarantees.
+Requests use a fixed HTTPS endpoint, GraphQL variables for user input, and safe
+error messages that do not echo server details or credentials. Ordinary read
+pagination is supported; team workflow states exceeding one 100-state page cause
+an explicit failed refresh rather than silently hiding state choices.
 
-Keep independent backups of the configured Todo data directory. Prefer one
-widget instance, avoid external concurrent writers, and use noncritical tasks
-while evaluating. A full live-session UI audit is not included.
+This is not a security certification. Follow the
+[plugin setup and upgrade instructions](../plugins/dankTodo/README.md).

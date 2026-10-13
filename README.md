@@ -8,7 +8,7 @@ Maintained source monorepo for `oai404iao/dms-plugins`. Each directory under
 | Component | Role |
 | --- | --- |
 | `plugins/lyrics` | Shared bilingual lyrics daemon, locally maintained version `0.4.0-local.1` |
-| `plugins/dankTodo` | Locally maintained Dank Todo `1.3.0-local.1`: translated tree tasks, dates and pause; read the [known risks](docs/todo-audit.md) |
+| `plugins/dankTodo` | Dank Todo `2.0.0-local.1`: your Linear issues, native states and sub-issues; read the [setup](plugins/dankTodo/README.md) and [limits](docs/todo-audit.md) |
 | `scripts/dms-media-lyrics` | Version-pinned native media bar/page overlay |
 | `scripts/prepare-dms-media-lyrics.py` | Offline preparation of a separate shell tree |
 | `bin/dms-with-lyrics` | Version-matched launcher with stock-DMS fallback |
@@ -18,7 +18,8 @@ Maintained source monorepo for `oai404iao/dms-plugins`. Each directory under
 This repository owns plugin source, the overlay, launcher, installer, and tests.
 Dotfiles/chezmoi owns desktop configuration, not a second copy of these sources.
 DMS enablement, bar layout, preferences, plugin lockfiles, caches, credentials,
-and `~/.config/dank-todo/todos.json` remain machine-local. Never commit them.
+and Linear API keys remain machine-local. Never commit them. Old
+`~/.config/dank-todo/todos.json` files remain untouched by the Linear rewrite.
 See [provenance and licenses](docs/provenance.md); upstream licenses are retained.
 Todo is locally maintained; see its [usage and data format](plugins/dankTodo/README.md).
 
@@ -94,9 +95,9 @@ dms ipc call plugins enable dankTodo
 
 Wait for scanning to finish before enabling. In Settings → DankBar, add **Dank Todo**
 to a bar section. Do not add the lyrics daemon as a bar widget. Preferences stay
-in DMS. Todo's default data path is `$XDG_CONFIG_HOME/dank-todo/todos.json`;
-its settings can change this path. Treat Todo as experimental, especially across
-multiple displays, and back up data independently.
+in DMS. Todo now requires a private Linear API key file; see its
+[setup instructions](plugins/dankTodo/README.md). It no longer reads local TODO
+files or migrates them. Task data stays in Linear.
 
 Update and review this Git checkout, run offline checks, then reload explicitly:
 
@@ -116,7 +117,7 @@ Old lockfile entries are not rewritten by the installer.
 
 `sh tests/check-source.sh` runs manifest/inventory and isolated safe-installer
 checks, lyrics JavaScript tests, headless Qt 6 QML fixtures, overlay preparation,
-Todo tree/date/status QML regressions, and launcher fallback tests. All are offline: no real provider requests, model
+Todo mocked GraphQL and QML regressions, and launcher fallback tests. All are offline: no real provider requests, model
 calls, desktop changes, or notification sends. Node or Qt 6 tests explicitly skip
 when their tools are absent. Python fixtures and QML workspaces are retained under
 `~/.local/state/agents/tmp`. These tests do not establish Todo runtime reliability

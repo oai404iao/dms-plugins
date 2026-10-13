@@ -15,7 +15,10 @@ task_dir=$(mktemp -d "$scratch_root/check-dms-todo-qml.XXXXXXXX")
 cp -R -- "$repo_dir/tests/fixtures/dms-todo-qml/." "$task_dir/"
 mkdir -p -- "$task_dir/plugin" "$task_dir/home" "$task_dir/run"
 cp -- "$repo_dir/plugins/dankTodo/DankTodoWidget.qml" \
-    "$repo_dir/plugins/dankTodo/DankTodoSettings.qml" "$task_dir/plugin/"
+    "$repo_dir/plugins/dankTodo/DankTodoSettings.qml" \
+    "$repo_dir/plugins/dankTodo/LinearService.qml" "$task_dir/plugin/"
+cp -- "$repo_dir/plugins/dankTodo/LinearApi.js" "$task_dir/plugin/RealLinearApi.js"
+cp -- "$task_dir/MockLinearApi.js" "$task_dir/plugin/LinearApi.js"
 cp -R -- "$repo_dir/plugins/dankTodo/translations" "$task_dir/plugin/"
 
 if ! env -i PATH=/usr/bin:/bin HOME="$task_dir/home" \

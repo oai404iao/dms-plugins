@@ -15,8 +15,11 @@ LICENSE covers original tooling/docs/tests and does not replace upstream notices
 Migrated tests only change repository paths and omit chezmoi apply-hook checks;
 those remain in the dotfiles repository. Original source bytes of plugin files,
 overlay components, preparation helper, launcher and fixtures were preserved
-at migration. Todo `1.3.0-local.1` adds DMS translations, tree rendering,
-planned completion times and pause/resume, with offline regression fixtures.
+at migration. Todo `2.0.0-local.1` is a local rewrite using Linear's GraphQL API,
+with a shared daemon, DMS translations, native workflows and sub-issues.
+It replaces the earlier local `1.3.0-local.1` enhancements and retains the upstream
+license, ID and original author attribution. Its old screenshot is historical,
+not a representation of the Linear rewrite.
 
 The supported DMS releases have identical `shell.qml` and the five replaced
 component hashes. Full input trees must nevertheless come from the installed
@@ -24,5 +27,5 @@ release, preserving all other upstream fixes. Pinned hashes are in
 `scripts/prepare-dms-media-lyrics.py`. New DMS versions require a new compatibility
 review, not a relaxed version guard.
 
-The retained Todo README describes upstream installation. For this monorepo,
-follow the root README instead: use the local installer and reviewed Git updates.
+Use the root README for installation and reviewed Git updates, and the Todo
+README for API key setup and upgrade behavior.

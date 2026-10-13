@@ -1,2 +1,4 @@
 module qs.Services
 singleton ToastService 1.0 ToastService.qml
+singleton SettingsData 1.0 SettingsData.qml
+singleton PluginService 1.0 PluginService.qml

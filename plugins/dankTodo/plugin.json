@@ -1,15 +1,20 @@
 {
     "id": "dankTodo",
     "name": "Dank Todo",
-    "description": "A simple locally-saved TODO list widget for the Dank bar",
-    "version": "1.3.0-local.1",
+    "description": "Your Linear issues in the Dank bar",
+    "version": "2.0.0-local.1",
     "license": "MIT",
     "author": "Deepu K Sasidharan",
     "icon": "checklist",
-    "type": "widget",
+    "type": "composite",
     "category": "productivity",
     "component": "./DankTodoWidget.qml",
+    "components": {
+        "widget": "./DankTodoWidget.qml",
+        "daemon": "./LinearService.qml"
+    },
     "settings": "./DankTodoSettings.qml",
+    "requires_dms": ">=1.6.3",
     "capabilities": [
         "dankbar-widget"
     ],
@@ -22,6 +27,7 @@
     "dependencies": [],
     "permissions": [
         "settings_read",
-        "settings_write"
+        "settings_write",
+        "network"
     ]
 }

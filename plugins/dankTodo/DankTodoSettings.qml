@@ -9,248 +9,160 @@ import qs.Modules.Plugins
 PluginSettings {
     id: root
     pluginId: "dankTodo"
+    readonly property var service: PluginService.pluginDaemonInstances["dankTodo"] ?? null
+    readonly property var teams: service ? service.teams : []
+    property string keyPathError: ""
 
-    StyledText {
-        width: parent.width
-        text: I18n.trFor("dankTodo", "Dank Todo Settings")
-        font.pixelSize: Theme.fontSizeLarge
-        font.weight: Font.Bold
-        color: Theme.surfaceText
+    function saveKeyPath() {
+        const value = pathInput.text.trim();
+        if (value && !value.startsWith("/")) {
+            keyPathError = I18n.trFor("dankTodo", "Enter an absolute file path, not an API key.");
+            return false;
+        }
+        keyPathError = "";
+        root.saveValue("apiKeyPath", value);
+        return true;
     }
 
     StyledText {
         width: parent.width
-        text: I18n.trFor("dankTodo", "A local, JSON-backed todo list for the Dank bar")
-        font.pixelSize: Theme.fontSizeSmall
+        text: I18n.trFor("dankTodo", "Linear settings")
+        font.pixelSize: Theme.fontSizeLarge
+        font.weight: Font.Bold
+    }
+    StyledText {
+        width: parent.width
+        text: I18n.trFor("dankTodo", "Manage issues assigned to you in Linear.")
+        font.pixelSize: Theme.fontSizeMedium
         color: Theme.surfaceVariantText
         wrapMode: Text.WordWrap
     }
 
-    StyledRect {
+    Column {
         width: parent.width
-        height: storageColumn.implicitHeight + Theme.spacingL * 2
-        radius: Theme.cornerRadius
-        color: Theme.surfaceContainerHigh
-
-        Column {
-            id: storageColumn
-            anchors.fill: parent
-            anchors.margins: Theme.spacingL
-            spacing: Theme.spacingM
-
-            StyledText {
-                text: I18n.trFor("dankTodo", "Storage")
-                font.pixelSize: Theme.fontSizeMedium
-                font.weight: Font.Medium
-                color: Theme.surfaceText
+        spacing: Theme.spacingS
+        StyledText {
+            text: I18n.trFor("dankTodo", "API key file")
+            font.pixelSize: Theme.fontSizeMedium
+        }
+        DankTextField {
+            id: pathInput
+            objectName: "apiKeyPath"
+            width: parent.width
+            enabled: !root.service?.busy
+            placeholderText: (Quickshell.env("XDG_CONFIG_HOME") || (Quickshell.env("HOME") + "/.config")) + "/dank-todo/linear-api-key"
+            text: root.loadValue("apiKeyPath", "")
+            onEditingFinished: root.saveKeyPath()
+        }
+        StyledText {
+            width: parent.width
+            text: I18n.trFor("dankTodo", "Put your personal Linear API key in a local file containing only the key. Enter its absolute path here, not the key. Only the path is saved in settings. Leave empty to use the default path.")
+            font.pixelSize: Theme.fontSizeSmall
+            color: Theme.surfaceVariantText
+            wrapMode: Text.WordWrap
+        }
+        DankButton {
+            objectName: "reloadCredentials"
+            text: I18n.trFor("dankTodo", "Reload key and test connection")
+            iconName: "refresh"
+            enabled: !!root.service && !root.service.busy
+            onClicked: {
+                if (!root.saveKeyPath())
+                    return;
+                Qt.callLater(() => root.service.reloadCredentials());
             }
-
-            Column {
-                width: parent.width
-                spacing: 6
-
-                StyledText {
-                    text: I18n.trFor("dankTodo", "Storage directory")
-                    font.pixelSize: Theme.fontSizeSmall
-                    color: Theme.surfaceText
-                }
-
-                DankTextField {
-                    id: pathInput
-                    width: parent.width
-                    placeholderText: (Quickshell.env("XDG_CONFIG_HOME") || (Quickshell.env("HOME") + "/.config")) + "/dank-todo"
-                    text: root.loadValue("storagePath", "")
-                    onEditingFinished: root.saveValue("storagePath", text.trim())
-                }
-
-                StyledText {
-                    width: parent.width
-                    text: I18n.trFor("dankTodo", "Todos are stored in todos.json inside this directory. Leave empty to use the default.")
-                    font.pixelSize: Theme.fontSizeSmall * 0.9
-                    opacity: 0.6
-                    wrapMode: Text.WordWrap
-                }
-            }
+        }
+        StyledText {
+            width: parent.width
+            text: root.keyPathError || root.service?.error || (root.service?.busy ? I18n.trFor("dankTodo", "Working…")
+                : root.service?.connected ? I18n.trFor("dankTodo", "Connected as %1").arg(root.service.viewer?.name || "")
+                : I18n.trFor("dankTodo", "Not connected"))
+            color: root.keyPathError || root.service?.error ? Theme.error : Theme.surfaceVariantText
+            font.pixelSize: Theme.fontSizeSmall
+            wrapMode: Text.WordWrap
         }
     }
 
-    StyledRect {
+    StyledText {
+        text: I18n.trFor("dankTodo", "Default team")
+        font.pixelSize: Theme.fontSizeMedium
+    }
+    ThemedChoice {
+        objectName: "defaultTeamId"
         width: parent.width
-        height: displayColumn.implicitHeight + Theme.spacingL * 2
-        radius: Theme.cornerRadius
-        color: Theme.surfaceContainerHigh
-
-        Column {
-            id: displayColumn
-            anchors.fill: parent
-            anchors.margins: Theme.spacingL
-            spacing: Theme.spacingM
-
-            StyledText {
-                text: I18n.trFor("dankTodo", "Display")
-                font.pixelSize: Theme.fontSizeMedium
-                font.weight: Font.Medium
-                color: Theme.surfaceText
-            }
-
-            Column {
-                width: parent.width
-                spacing: 6
-
-                StyledText {
-                    text: I18n.trFor("dankTodo", "Bar pill count")
-                    font.pixelSize: Theme.fontSizeSmall
-                    color: Theme.surfaceText
-                }
-
-                Row {
-                    id: modeRow
-                    width: parent.width
-                    spacing: Theme.spacingXS
-
-                    property string currentMode: root.loadValue("countMode", "active")
-                    property real chipWidth: (width - spacing * 4) / 5
-
-                    Repeater {
-                        model: [
-                            {
-                                key: "active",
-                                label: I18n.trFor("dankTodo", "Active")
-                            },
-                            {
-                                key: "paused",
-                                label: I18n.trFor("dankTodo", "Paused")
-                            },
-                            {
-                                key: "total",
-                                label: I18n.trFor("dankTodo", "Total")
-                            },
-                            {
-                                key: "done",
-                                label: I18n.trFor("dankTodo", "Done")
-                            },
-                            {
-                                key: "hidden",
-                                label: I18n.trFor("dankTodo", "Hidden")
-                            }
-                        ]
-
-                        Rectangle {
-                            width: modeRow.chipWidth
-                            height: 32
-                            radius: Theme.cornerRadius
-                            color: modeRow.currentMode === modelData.key ? Theme.primary : (chipArea.containsMouse ? Theme.surfaceContainerHighest : Theme.surfaceContainer)
-                            border.width: modeRow.currentMode === modelData.key ? 0 : 1
-                            border.color: Theme.outlineVariant
-
-                            StyledText {
-                                anchors.centerIn: parent
-                                text: modelData.label
-                                font.pixelSize: Theme.fontSizeSmall
-                                color: modeRow.currentMode === modelData.key ? Theme.onPrimary : Theme.surfaceText
-                            }
-
-                            MouseArea {
-                                id: chipArea
-                                anchors.fill: parent
-                                hoverEnabled: true
-                                cursorShape: Qt.PointingHandCursor
-                                onClicked: {
-                                    modeRow.currentMode = modelData.key
-                                    root.saveValue("countMode", modelData.key)
-                                }
-                            }
-                        }
-                    }
-                }
-
-                StyledText {
-                    width: parent.width
-                    text: I18n.trFor("dankTodo", "Which number to show next to the todo icon in the bar.")
-                    font.pixelSize: Theme.fontSizeSmall * 0.9
-                    opacity: 0.6
-                    wrapMode: Text.WordWrap
-                }
-            }
-        }
+        label: I18n.trFor("dankTodo", "Default team")
+        enabled: root.teams.length > 0 && !root.service?.busy
+        model: root.teams
+        currentIndex: Math.max(0, root.teams.findIndex(t => t.id === root.loadValue("defaultTeamId", "")))
+        onActivated: function(index) { root.saveValue("defaultTeamId", root.teams[index].id); }
     }
 
-    StyledRect {
+    StyledText {
+        text: I18n.trFor("dankTodo", "Bar count")
+        font.pixelSize: Theme.fontSizeMedium
+    }
+    ThemedChoice {
+        objectName: "countMode"
         width: parent.width
-        height: limitsColumn.implicitHeight + Theme.spacingL * 2
-        radius: Theme.cornerRadius
-        color: Theme.surfaceContainerHigh
-
-        Column {
-            id: limitsColumn
-            anchors.fill: parent
-            anchors.margins: Theme.spacingL
-            spacing: Theme.spacingM
-
-            StyledText {
-                text: I18n.trFor("dankTodo", "Limits")
-                font.pixelSize: Theme.fontSizeMedium
-                font.weight: Font.Medium
-                color: Theme.surfaceText
-            }
-
-            StringSetting {
-                settingKey: "maxItems"
-                label: I18n.trFor("dankTodo", "Maximum todos")
-                description: I18n.trFor("dankTodo", "Maximum number of stored todos")
-                placeholder: "200"
-                defaultValue: "200"
-            }
-
-            StringSetting {
-                settingKey: "maxTextLength"
-                label: I18n.trFor("dankTodo", "Maximum characters per todo")
-                description: I18n.trFor("dankTodo", "Longer entries will be truncated when added")
-                placeholder: "500"
-                defaultValue: "500"
-            }
-        }
+        label: I18n.trFor("dankTodo", "Bar count")
+        model: [
+            { key: "active", name: I18n.trFor("dankTodo", "Active") },
+            { key: "total", name: I18n.trFor("dankTodo", "Total") },
+            { key: "done", name: I18n.trFor("dankTodo", "Done") },
+            { key: "hidden", name: I18n.trFor("dankTodo", "Hidden") }
+        ]
+        currentIndex: Math.max(0, model.findIndex(t => t.key === root.loadValue("countMode", "active")))
+        onActivated: function(index) { root.saveValue("countMode", model[index].key); }
     }
 
-    StyledRect {
-        width: parent.width
-        height: ipcColumn.implicitHeight + Theme.spacingL * 2
-        radius: Theme.cornerRadius
-        color: Theme.surface
-
-        Column {
-            id: ipcColumn
-            anchors.fill: parent
-            anchors.margins: Theme.spacingL
-            spacing: Theme.spacingS
-
-            Row {
-                spacing: Theme.spacingM
-
-                DankIcon {
-                    name: "terminal"
-                    size: Theme.iconSize
-                    color: Theme.primary
-                    anchors.verticalCenter: parent.verticalCenter
-                }
-
-                StyledText {
-                    text: I18n.trFor("dankTodo", "IPC commands")
-                    font.pixelSize: Theme.fontSizeMedium
-                    font.weight: Font.Medium
-                    color: Theme.surfaceText
-                    anchors.verticalCenter: parent.verticalCenter
-                }
+    component ThemedChoice: ComboBox {
+        id: choice
+        property string label: ""
+        height: 42
+        textRole: "name"
+        Accessible.name: label
+        opacity: enabled ? 1 : 0.5
+        leftPadding: Theme.spacingM
+        rightPadding: 32
+        contentItem: StyledText { text: choice.displayText; wrapMode: Text.NoWrap; elide: Text.ElideRight }
+        indicator: DankIcon {
+            x: choice.width - width - Theme.spacingS
+            anchors.verticalCenter: parent.verticalCenter
+            name: "expand_more"
+            size: 18
+            color: Theme.surfaceVariantText
+        }
+        background: StyledRect {
+            radius: Theme.cornerRadius
+            color: Theme.surfaceContainerHigh
+            border.width: choice.activeFocus ? 2 : 1
+            border.color: choice.activeFocus ? Theme.primary : Theme.outlineVariant
+        }
+        delegate: ItemDelegate {
+            required property var modelData
+            required property int index
+            width: choice.width
+            highlighted: choice.highlightedIndex === index
+            contentItem: StyledText { text: modelData.name; wrapMode: Text.NoWrap; elide: Text.ElideRight }
+            background: StyledRect { color: highlighted ? Theme.surfaceContainerHighest : Theme.surfaceContainerHigh }
+        }
+        popup: Popup {
+            width: choice.width
+            y: choice.height + Theme.spacingXS
+            padding: Theme.spacingXS
+            implicitHeight: Math.min(contentItem.implicitHeight + padding * 2, 220)
+            contentItem: ListView {
+                implicitHeight: contentHeight
+                clip: true
+                model: choice.popup.visible ? choice.delegateModel : null
+                currentIndex: choice.highlightedIndex
+                ScrollIndicator.vertical: ScrollIndicator {}
             }
-
-            StyledText {
-                width: parent.width
-                text: "dms ipc call dankTodo add \"Buy milk\"\ndms ipc call dankTodo toggle <id>\ndms ipc call dankTodo pause <id>\ndms ipc call dankTodo plan <id> \"2026-05-01\"\ndms ipc call dankTodo remove <id>\ndms ipc call dankTodo clearDone\ndms ipc call dankTodo list\ndms ipc call dankTodo count"
-                font.pixelSize: Theme.fontSizeSmall
-                font.family: "monospace"
-                color: Theme.surfaceVariantText
-                wrapMode: Text.WordWrap
-                lineHeight: 1.4
+            background: StyledRect {
+                radius: Theme.cornerRadius
+                color: Theme.surfaceContainerHigh
+                border.width: 1
+                border.color: Theme.outlineVariant
             }
         }
     }
