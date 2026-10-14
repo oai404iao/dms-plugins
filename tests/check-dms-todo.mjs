@@ -38,24 +38,25 @@ function test(name, run) {
     checks++;
     console.log(`PASS ${name}`);
 }
-function send(query = api.createMutation, variables = {}) {
+function send(query = api.updateMutation, variables = {}) {
     const calls = [];
     const handle = api.request("fixture-not-a-real-key", query, variables,
         (data, error) => calls.push({ data, error }));
     return { xhr: requests.at(-1), calls, handle };
 }
 test("GraphQL uses fixed endpoint, raw API key header and JSON variables", () => {
-    const title = '" } mutation Malicious { deleteEverything } #\nUnicode 中文';
-    const { xhr, calls } = send(api.createMutation,
-        { input: { title, teamId: "team", assigneeId: "viewer", parentId: "parent", dueDate: "2028-02-29" } });
+    const id = '" } mutation Malicious { deleteEverything } #\nUnicode 中文';
+    const { xhr, calls } = send(api.updateMutation, { id, input: { stateId: "completed-state" } });
     assert.equal(xhr.method, "POST");
     assert.equal(xhr.url, "https://api.linear.app/graphql");
     assert.deepEqual(xhr.headers, { "Content-Type": "application/json", Authorization: "fixture-not-a-real-key" });
-    assert.equal(xhr.body.query, api.createMutation);
-    assert.equal(xhr.body.query.includes(title), false);
-    assert.equal(xhr.body.variables.input.title, title);
-    xhr.respond(200, { data: { issueCreate: { success: true, issue: { id: "new" } } } });
-    assert.deepEqual(plain(calls), [{ data: { issueCreate: { success: true, issue: { id: "new" } } }, error: "" }]);
+    assert.equal(xhr.body.query, api.updateMutation);
+    assert.match(xhr.body.query, /\$input: IssueUpdateInput!/);
+    assert.match(xhr.body.query, /issueUpdate\(id: \$id, input: \$input\)/);
+    assert.equal(xhr.body.query.includes(id), false);
+    assert.deepEqual(xhr.body.variables, { id, input: { stateId: "completed-state" } });
+    xhr.respond(200, { data: { issueUpdate: { success: true, issue: { id } } } });
+    assert.deepEqual(plain(calls), [{ data: { issueUpdate: { success: true, issue: { id } } }, error: "" }]);
     xhr.onerror();
     assert.equal(calls.length, 1, "request settles exactly once");
 });
@@ -103,13 +104,6 @@ test("cancellation aborts transport and suppresses late callbacks", () => {
     xhr.respond(200, { data: {} });
     xhr.onerror();
     assert.equal(calls.length, 0);
-});
-test("strict calendar dates, including leap-year rollover", () => {
-    for (const value of ["", "2024-02-29", "2000-02-29", "2026-12-31"])
-        assert.equal(api.validDate(value), true, value);
-    for (const value of ["2026-02-29", "1900-02-29", "2024-04-31", "2026-00-01",
-        "2026-13-01", "2026-01-00", "2026-1-01", "2026-01-01T12:00:00Z", " tomorrow "])
-        assert.equal(api.validDate(value), false, value);
 });
 test("native done/canceled/duplicate and ancestor context, filtering and collapse", () => {
     const issue = (id, type, parentId, isMine = true) =>

@@ -46,7 +46,7 @@ for name, expected in inventories.items():
     else:
         assert manifest["type"] == "composite"
         assert manifest["capabilities"] == ["dankbar-widget"]
-        assert manifest["version"] == "2.0.0-local.1"
+        assert manifest["version"] == "2.0.0-local.2"
         assert manifest["components"] == {
             "widget": "./DankTodoWidget.qml", "daemon": "./LinearService.qml"
         }

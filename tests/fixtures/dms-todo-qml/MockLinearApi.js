@@ -4,13 +4,11 @@
 var bootstrapQuery = Real.bootstrapQuery;
 var issuesQuery = Real.issuesQuery;
 var parentQuery = Real.parentQuery;
-var createMutation = Real.createMutation;
 var updateMutation = Real.updateMutation;
 var pending = [];
 var history = [];
 var nextError = "";
 function reset() { pending = []; history = []; nextError = ""; }
-function validDate(value) { return Real.validDate(value); }
 function validPage(value) { return Real.validPage(value); }
 function validIssue(value) { return Real.validIssue(value); }
 function isDone(issue) { return Real.isDone(issue); }

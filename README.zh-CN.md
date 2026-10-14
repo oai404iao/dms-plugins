@@ -8,7 +8,7 @@
 | 组件 | 职责 |
 | --- | --- |
 | `plugins/lyrics` | 共享双语歌词守护插件，本地维护版本 `0.4.0-local.1` |
-| `plugins/dankTodo` | Dank Todo `2.0.0-local.1`：对接我的 Linear 任务、原生状态与子任务；请先读[配置说明](plugins/dankTodo/README.md)和[已知限制](docs/todo-audit.md) |
+| `plugins/dankTodo` | Dank Todo `2.0.0-local.2`：专注查看和完成我的 Linear 任务；请先读[配置说明](plugins/dankTodo/README.md)和[已知限制](docs/todo-audit.md) |
 | `scripts/dms-media-lyrics` | 锁定版本的原生媒体栏与媒体页覆盖层 |
 | `scripts/prepare-dms-media-lyrics.py` | 离线准备独立 shell 副本 |
 | `bin/dms-with-lyrics` | 版本匹配的启动器，不匹配时回退原版 DMS |

@@ -12,8 +12,6 @@ var issuesQuery = "query MyIssues($viewer: ID!, $after: String) { "
     + "issues(first: 100, after: $after, filter: { assignee: { id: { eq: $viewer } } }, orderBy: updatedAt) "
     + "{ nodes { " + issueFields + " } pageInfo { hasNextPage endCursor } } }";
 var parentQuery = "query Parent($id: String!) { issue(id: $id) { " + issueFields + " } }";
-var createMutation = "mutation CreateIssue($input: IssueCreateInput!) { "
-    + "issueCreate(input: $input) { success issue { id } } }";
 var updateMutation = "mutation UpdateIssue($id: String!, $input: IssueUpdateInput!) { "
     + "issueUpdate(id: $id, input: $input) { success issue { id } } }";
 
@@ -76,15 +74,6 @@ function request(key, query, variables, callback) {
         finish(null, "network");
     }
     return { cancel: function () { settled = true; xhr.abort(); } };
-}
-
-function validDate(value) {
-    if (!value)
-        return true;
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(value))
-        return false;
-    var date = new Date(value + "T00:00:00Z");
-    return !isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value;
 }
 
 function validPage(page) {

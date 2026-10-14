@@ -8,7 +8,7 @@ Maintained source monorepo for `oai404iao/dms-plugins`. Each directory under
 | Component | Role |
 | --- | --- |
 | `plugins/lyrics` | Shared bilingual lyrics daemon, locally maintained version `0.4.0-local.1` |
-| `plugins/dankTodo` | Dank Todo `2.0.0-local.1`: your Linear issues, native states and sub-issues; read the [setup](plugins/dankTodo/README.md) and [limits](docs/todo-audit.md) |
+| `plugins/dankTodo` | Dank Todo `2.0.0-local.2`: view and complete your Linear issues; read the [setup](plugins/dankTodo/README.md) and [limits](docs/todo-audit.md) |
 | `scripts/dms-media-lyrics` | Version-pinned native media bar/page overlay |
 | `scripts/prepare-dms-media-lyrics.py` | Offline preparation of a separate shell tree |
 | `bin/dms-with-lyrics` | Version-matched launcher with stock-DMS fallback |

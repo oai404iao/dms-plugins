@@ -63,9 +63,9 @@ TestCase {
     function state(id, type, position) {
         return {id: id, name: id, color: "#aabbcc", type: type, position: position || 0};
     }
-    function team(id) {
+    function team(id, completedId) {
         return {id: id || "team", name: "Test team", states: {
-            nodes: [state("done", "completed", 2), state("active", "started", 1), state("cancel", "canceled", 3)],
+            nodes: [state(completedId || "done", "completed", 2), state("active", "started", 1), state("cancel", "canceled", 3)],
             pageInfo: {hasNextPage: false}
         }};
     }
@@ -82,10 +82,10 @@ TestCase {
     function ids(rows) { return rows.map(t => t.id).join(","); }
     function request() { verify(Api.pending.length > 0); return Api.pending[0]; }
     function complete(data, error) { Api.complete(data, error); wait(0); }
-    function bootstrap(tasks) {
+    function bootstrap(tasks, teams) {
         TestIo.file.inject("fixture-key\n");
         compare(request().query, Api.bootstrapQuery);
-        complete({viewer: {id: "viewer", name: "Viewer"}, teams: page([team()])});
+        complete({viewer: {id: "viewer", name: "Viewer"}, teams: page(teams || [team()])});
         compare(request().query, Api.issuesQuery);
         complete({issues: page(tasks || [issue("mine")])});
         compare(daemon.busy, false);
@@ -108,7 +108,9 @@ TestCase {
         if (Api.pending.length) {
             compare(request().query, Api.bootstrapQuery);
             const tasks = daemon.issues.filter(t => t.isMine);
-            complete({viewer: {id: "viewer", name: "Viewer"}, teams: page([team()])});
+            complete({viewer: {id: daemon.viewer.id, name: "Viewer"}, teams: page(daemon.teams.map(t => ({
+                id: t.id, name: t.name, states: page(t.states)
+            })))});
             complete({issues: page(tasks)});
         }
     }
@@ -147,40 +149,96 @@ TestCase {
         compare(TestIo.file.writeCount, 0);
     }
 
-    function test_create_assigned_subtask_update_state_and_clear_date() {
-        bootstrap();
-        verify(daemon.createIssue("  Child title  ", "team", "mine", "2028-02-29"));
-        compare(request().query, Api.createMutation);
-        compare(JSON.stringify(request().variables.input), JSON.stringify({
-            title: "Child title", teamId: "team", assigneeId: "viewer", parentId: "mine", dueDate: "2028-02-29"
-        }));
-        complete({issueCreate: {success: true, issue: {id: "new"}}});
-        compare(mutationResults.join(","), "true");
-        compare(request().query, Api.issuesQuery);
-        complete({issues: page([issue("mine"), issue("new")])});
-        verify(daemon.updateIssue("mine", " Renamed ", "cancel", ""));
+    function test_completion_updates_only_state_and_waits_for_refreshed_snapshot() {
+        const mine = issue("mine");
+        mine.dueDate = "2028-02-29";
+        bootstrap([mine, issue("other")]);
+        const snapshot = JSON.stringify(daemon.issues);
+        verify(daemon.canCompleteIssue("mine"));
+        verify(daemon.completeIssue("mine"));
+        compare(daemon.pendingIssueId, "mine");
         compare(request().query, Api.updateMutation);
-        compare(JSON.stringify(request().variables), JSON.stringify({
-            id: "mine", input: {title: "Renamed", stateId: "cancel", dueDate: null}
-        }));
+        compare(JSON.stringify(request().variables), JSON.stringify({id: "mine", input: {stateId: "done"}}));
+        compare(JSON.stringify(daemon.issues), snapshot, "never complete optimistically");
+        compare(daemon.activeCount, 2);
+        const calls = Api.history.length;
+        compare(daemon.canCompleteIssue("other"), false);
+        compare(daemon.completeIssue("mine"), false);
+        compare(daemon.completeIssue("other"), false);
+        compare(daemon.refresh(), false);
+        compare(Api.history.length, calls, "only one task write may be in flight");
         complete({issueUpdate: {success: true}});
-        complete({issues: page([issue("mine", "canceled")])});
+        compare(mutationResults.join(","), "true");
+        compare(daemon.pendingIssueId, "");
+        verify(daemon.busy, "confirmed completion still waits for refresh");
+        compare(request().query, Api.issuesQuery);
+        compare(request().variables.viewer, "viewer");
+        compare(JSON.stringify(daemon.issues), snapshot);
+        const done = issue("mine", "completed");
+        done.dueDate = mine.dueDate;
+        complete({issues: page([done, issue("other")])});
+        compare(ids(daemon.treeRows("active", [])), "other");
+        compare(ids(daemon.treeRows("done", [])), "mine");
         compare(daemon.doneCount, 1);
-        compare(daemon.activeCount, 0);
+        compare(daemon.activeCount, 1);
+        compare(daemon.issues[0].title, mine.title);
+        compare(daemon.issues[0].dueDate, mine.dueDate);
         compare(TestIo.file.writeCount, 0);
     }
 
-    function test_invalid_mutations_and_context_are_read_only() {
-        bootstrap([issue("mine", "started", issue("context"))]);
+    function test_completion_uses_each_issues_team_completed_state() {
+        const second = issue("second");
+        second.team = {id: "team2", name: "Second team"};
+        bootstrap([issue("mine"), second], [team(), team("team2", "team2-done")]);
+        verify(daemon.completeIssue("second"));
+        compare(JSON.stringify(request().variables), JSON.stringify({id: "second", input: {stateId: "team2-done"}}));
+        complete({issueUpdate: {success: true}});
+        const done = issue("second", "completed");
+        done.team = second.team;
+        complete({issues: page([issue("mine"), done])});
+        verify(daemon.completeIssue("mine"));
+        compare(JSON.stringify(request().variables), JSON.stringify({id: "mine", input: {stateId: "done"}}));
+        complete({issueUpdate: {success: true}});
+        complete({issues: page([issue("mine", "completed"), done])});
+        compare(daemon.activeCount, 0);
+        compare(daemon.doneCount, 2);
+    }
+
+    function test_completion_invalid_closed_and_context_are_read_only() {
+        bootstrap([issue("mine", "started", issue("context")), issue("done", "completed"),
+                   issue("cancel", "canceled"), issue("duplicate", "duplicate")]);
         const calls = Api.history.length;
-        for (const args of [
-            ["", "team", "", ""], ["title", "missing", "", ""],
-            ["title", "team", "context", ""], ["title", "team", "missing", ""],
-            ["title", "team", "", "2026-02-29"]
-        ]) compare(daemon.createIssue(...args), false);
-        compare(daemon.updateIssue("context", "Changed", "active", ""), false);
-        compare(daemon.updateIssue("mine", "Changed", "missing", ""), false);
-        compare(daemon.updateIssue("mine", "Changed", "active", "2026-04-31"), false);
+        for (const id of ["", "missing", "context", "done", "cancel", "duplicate"]) {
+            compare(daemon.canCompleteIssue(id), false, id);
+            compare(daemon.completeIssue(id), false, id);
+        }
+        compare(typeof daemon.createIssue, "undefined");
+        compare(typeof daemon.updateIssue, "undefined");
+        compare(Api.history.length, calls);
+    }
+
+    function test_completion_requires_team_completed_state_connected_and_idle() {
+        const noStatus = team();
+        noStatus.states = page([state("active", "started"), state("cancel", "canceled")]);
+        bootstrap([issue("mine")], [noStatus]);
+        const calls = Api.history.length;
+        compare(daemon.canCompleteIssue("mine"), false);
+        compare(daemon.completeIssue("mine"), false);
+        daemon.teams = [];
+        compare(daemon.canCompleteIssue("mine"), false, "unknown team is not completable");
+        daemon.teams = [{id: "team", states: team().states.nodes}];
+        verify(daemon.canCompleteIssue("mine"));
+        daemon.connected = false;
+        compare(daemon.canCompleteIssue("mine"), false);
+        compare(daemon.completeIssue("mine"), false);
+        daemon.connected = true;
+        daemon.busy = true;
+        compare(daemon.canCompleteIssue("mine"), false);
+        compare(daemon.completeIssue("mine"), false);
+        daemon.busy = false;
+        daemon.viewer = null;
+        compare(daemon.canCompleteIssue("mine"), false);
+        compare(daemon.completeIssue("mine"), false);
         compare(Api.history.length, calls);
     }
 
@@ -188,10 +246,11 @@ TestCase {
         bootstrap();
         const snapshot = JSON.stringify(daemon.issues);
         const syncedAt = daemon.lastSyncedAt;
-        verify(daemon.updateIssue("mine", "Changed", "done", ""));
+        verify(daemon.completeIssue("mine"));
         complete({issueUpdate: {success: false}});
         compare(mutationResults.join(","), "false");
         compare(JSON.stringify(daemon.issues), snapshot);
+        compare(daemon.pendingIssueId, "");
         verify(daemon.error.length > 0);
         verify(daemon.refresh());
         complete({viewer: {id: "viewer"}, teams: page([team()])});
@@ -200,6 +259,41 @@ TestCase {
         compare(JSON.stringify(daemon.issues), snapshot);
         compare(daemon.lastSyncedAt, syncedAt);
         verify(daemon.error.length > 0);
+    }
+
+    function test_confirmed_completion_failed_refresh_retains_snapshot() {
+        bootstrap();
+        const snapshot = JSON.stringify(daemon.issues);
+        const syncedAt = daemon.lastSyncedAt;
+        verify(daemon.completeIssue("mine"));
+        complete({issueUpdate: {success: true}});
+        compare(mutationResults.join(","), "true");
+        complete(null, "network");
+        compare(daemon.busy, false);
+        compare(daemon.pendingIssueId, "");
+        compare(JSON.stringify(daemon.issues), snapshot);
+        compare(daemon.lastSyncedAt, syncedAt);
+        verify(daemon.error.length > 0);
+        verify(daemon.refresh());
+        complete({viewer: {id: "viewer"}, teams: page([team()])});
+        complete({issues: page([issue("mine", "completed")])});
+        compare(daemon.activeCount, 0, "refresh reconciles confirmed completion");
+    }
+
+    function test_completion_transport_errors_data() {
+        return ["auth", "rate", "response", "network"].map(code => ({tag: code, code: code}));
+    }
+    function test_completion_transport_errors(data) {
+        bootstrap();
+        const snapshot = JSON.stringify(daemon.issues);
+        verify(daemon.completeIssue("mine"));
+        complete(null, data.code);
+        compare(mutationResults.join(","), "false");
+        compare(JSON.stringify(daemon.issues), snapshot);
+        compare(daemon.busy, false);
+        compare(daemon.pendingIssueId, "");
+        verify(daemon.error.length > 0);
+        compare(daemon.connected, data.code !== "auth");
     }
 
     function test_malformed_pages_data() {
@@ -248,18 +342,20 @@ TestCase {
 
     function test_timeout_aborts_and_ignores_late_response() {
         bootstrap();
-        verify(daemon.updateIssue("mine", "Uncertain", "done", ""));
+        const snapshot = JSON.stringify(daemon.issues);
+        verify(daemon.completeIssue("mine"));
         const outstanding = request();
         const timers = daemon.resources.filter(o => o.interval === 20000 && o.triggered !== undefined);
         compare(timers.length, 1);
         timers[0].triggered();
         verify(outstanding.canceled);
         compare(daemon.busy, false);
+        compare(daemon.pendingIssueId, "");
         compare(mutationResults.join(","), "false");
         verify(daemon.error.indexOf("timed out") >= 0);
         complete({issueUpdate: {success: true}});
         compare(mutationResults.join(","), "false");
-        compare(daemon.issues[0].title, "Issue mine");
+        compare(JSON.stringify(daemon.issues), snapshot);
     }
 
     function test_credential_changes_cancel_requests_and_reset_account() {
@@ -290,6 +386,35 @@ TestCase {
         compare(TestIo.file.writeCount, 0);
     }
 
+    function test_credential_rotation_during_completion_ignores_stale_success() {
+        bootstrap();
+        verify(daemon.completeIssue("mine"));
+        const old = request();
+        TestIo.file.fileChanged();
+        verify(old.canceled);
+        compare(daemon.pendingIssueId, "");
+        compare(daemon.busy, false);
+        compare(daemon.viewer, null);
+        compare(daemon.issues.length, 0);
+        compare(mutationResults.join(","), "false");
+        complete({issueUpdate: {success: true}});
+        compare(Api.pending.length, 0, "stale success must not refresh another account");
+        compare(mutationResults.join(","), "false");
+        TestIo.file.inject("rotated-fixture-key");
+        compare(request().key, "rotated-fixture-key");
+        complete({viewer: {id: "other-viewer"}, teams: page([team()])});
+        complete({issues: page([issue("other")])});
+        compare(daemon.viewer.id, "other-viewer");
+        compare(daemon.canCompleteIssue("mine"), false);
+        compare(daemon.completeIssue("mine"), false);
+        verify(daemon.completeIssue("other"));
+        compare(request().key, "rotated-fixture-key");
+        compare(request().variables.id, "other");
+        complete({issueUpdate: {success: true}});
+        complete({issues: page([issue("other", "completed")])});
+        compare(TestIo.file.writeCount, 0);
+    }
+
     function test_malformed_and_unreadable_credentials_never_write() {
         for (const contents of ["", " \n ", "two keys", "key\nother"]) {
             TestIo.file.inject(contents);
@@ -310,7 +435,7 @@ TestCase {
         verify(!json.includes("fixture-key"));
         compare(TestIo.ipc.count(), "2/3");
         compare(TestIo.ipc.target, "dankTodo");
-        for (const name of ["add", "edit", "delete", "plan", "pause", "setKey", "setToken"])
+        for (const name of ["add", "edit", "delete", "plan", "pause", "complete", "completeIssue", "setKey", "setToken"])
             compare(typeof TestIo.ipc[name], "undefined", name);
         compare(TestIo.ipc.refresh(), "STARTED");
         compare(TestIo.ipc.refresh(), "NOT_STARTED");
@@ -329,22 +454,21 @@ TestCase {
         verify(list.itemAtIndex(0) !== null && list.itemAtIndex(1) !== null);
         const context = list.itemAtIndex(0);
         compare(context.modelData.contextOnly, true);
-        compare(named(context, "editIssue-context").enabled, false);
-        compare(named(context, "addChild-context").enabled, false);
+        compare(named(context, "completeIssue-context").enabled, false);
         compare(named(context, "openIssue-context").enabled, true);
         const child = list.itemAtIndex(1);
-        compare(named(child, "editIssue-child").enabled, true);
-        compare(named(child, "addChild-child").enabled, true);
-        widget.draftTitle = "Keep draft";
-        widget.editIssue(widget.rows[0]);
-        widget.addChild(widget.rows[0]);
-        compare(widget.draftTitle, "Keep draft", "context actions cannot replace draft");
-        widget.toggleExpanded("context");
+        compare(named(child, "completeIssue-child").enabled, true);
+        const removed = descendants(popout, child => /^(editIssue-|addChild-)/.test(child.objectName)
+            || ["issueTitle", "dueDate", "issueChoice", "submitIssue", "cancelDraft"].includes(child.objectName));
+        compare(removed.length, 0, "no creation or editing controls remain");
+        named(context, "expandIssue-context").clicked();
         tryCompare(list, "count", 1);
-        widget.toggleExpanded("context");
+        named(list.itemAtIndex(0), "expandIssue-context").clicked();
         tryCompare(list, "count", 2);
-        for (const filter of ["done", "all", "active"]) {
-            widget.filter = filter;
+        compare(widget.filter, "active");
+        for (const filter of ["done", "active"]) {
+            named(popout, "filter-" + filter).clicked();
+            compare(widget.filter, filter);
             tryCompare(list, "count", daemon.treeRows(filter, []).length);
         }
         for (const mode of ["active", "total", "done", "hidden"]) {
@@ -359,148 +483,153 @@ TestCase {
         compare(TestIo.file.writeCount, 0);
     }
 
-    function test_ui_drafts_clear_only_confirmed_success_and_survive_close() {
-        bootstrap();
+    function test_ui_completion_shared_state_failure_and_closed_view() {
+        bootstrap([issue("mine"), issue("other")]);
         makeUi();
-        secondWidget.draftTitle = "Other widget draft";
-        widget.editIssue(widget.rows[0]);
-        compare(widget.editingId, "mine");
-        widget.draftTitle = "Changed";
-        widget.draftDate = "2026-02-29";
-        widget.submitDraft();
-        compare(widget.pendingSubmission, false);
-        compare(widget.draftTitle, "Changed");
-        compare(widget.editingId, "mine");
-        verify(daemon.error.length > 0 || widget.composerError.length > 0);
-        widget.draftDate = "2028-02-29";
-        widget.submitDraft();
-        compare(widget.pendingSubmission, true);
-        compare(named(popout, "submitIssue").enabled, false);
-        compare(named(popout, "issueTitle").enabled, false);
-        verify(Api.pending.length > 0, "failed mutation queued");
+        compare(popout.headerText, "My tasks");
+        compare(popout.detailsText, "2 remaining");
+        const list = named(popout, "issueList");
+        tryCompare(list, "count", 2);
+        wait(50);
+        named(list.itemAtIndex(0), "completeIssue-mine").clicked();
+        compare(daemon.pendingIssueId, "mine");
+        compare(request().variables.id, "mine");
+        compare(named(list.itemAtIndex(0), "completeIssue-mine").enabled, false);
+        compare(named(list.itemAtIndex(1), "completeIssue-other").enabled, false);
+        compare(named(popout, "refreshIssues").enabled, false);
+        compare(secondWidget.service.pendingIssueId, "mine");
+        compare(ids(secondWidget.rows), "mine,other", "both widgets retain unconfirmed snapshot");
+        verify(descendants(popout, child => child.text === "Completing task…").length > 0);
         complete(null, "network");
-        compare(widget.pendingSubmission, false);
-        compare(widget.draftTitle, "Changed");
-        compare(widget.draftDate, "2028-02-29");
-        compare(widget.editingId, "mine");
-        popout.destroy();
-        popout = null;
-        wait(0);
-        compare(widget.draftTitle, "Changed");
-        popout = widget.popoutContent.createObject(suite);
-        verify(popout !== null);
-        verify(Api.pending.length > 0, "reopened popout refresh queued");
-        complete({viewer: {id: "viewer", name: "Viewer"}, teams: page([team()])});
-        complete({issues: page([issue("mine")])});
-        compare(named(popout, "issueTitle").text, "Changed");
-        compare(named(popout, "dueDate").text, "2028-02-29");
-        widget.submitDraft();
-        compare(widget.pendingSubmission, true);
-        verify(Api.pending.length > 0, "successful mutation queued");
+        compare(ids(widget.rows), "mine,other");
+        compare(ids(secondWidget.rows), "mine,other");
+        compare(named(list.itemAtIndex(0), "completeIssue-mine").enabled, true);
+        named(list.itemAtIndex(0), "completeIssue-mine").clicked();
         complete({issueUpdate: {success: true}});
-        compare(widget.pendingSubmission, false);
-        compare(widget.draftTitle, "");
-        compare(widget.draftDate, "");
-        compare(widget.editingId, "");
-        compare(secondWidget.draftTitle, "Other widget draft", "another widget's draft must not clear");
-        verify(Api.pending.length > 0, "post-mutation refresh queued");
-        complete(null, "network");
-        compare(widget.draftTitle, "", "confirmed write clears even when subsequent refresh fails");
-        widget.addChild(widget.rows[0]);
-        compare(widget.parentId, "mine");
-        widget.draftTitle = "Subissue";
-        widget.submitDraft();
-        compare(request().variables.input.parentId, "mine");
-        complete({issueCreate: {success: true}});
-        complete({issues: page([issue("mine")])});
-        compare(widget.parentId, "");
+        compare(ids(widget.rows), "mine,other", "confirmed write waits for fresh list");
+        complete({issues: page([issue("mine", "completed"), issue("other")])});
+        tryCompare(list, "count", 1);
+        compare(ids(widget.rows), "other");
+        compare(ids(secondWidget.rows), "other");
+        compare(popout.detailsText, "1 remaining");
+        named(popout, "filter-done").clicked();
+        tryCompare(list, "count", 1);
+        wait(50);
+        compare(list.itemAtIndex(0).modelData.id, "mine");
+        compare(named(list.itemAtIndex(0), "completeIssue-mine").enabled, false);
+        compare(named(list.itemAtIndex(0), "openIssue-mine").enabled, true);
+        compare(secondWidget.filter, "active", "filters remain widget-local");
         compare(TestIo.file.writeCount, 0);
     }
 
-    function test_ui_synchronous_transport_failure_retains_draft() {
+    function test_ui_missing_completed_status_busy_and_offline() {
+        const noStatus = team();
+        noStatus.states = page([state("active", "started")]);
+        bootstrap([issue("mine")], [noStatus]);
+        makeUi();
+        const list = named(popout, "issueList");
+        tryCompare(list, "count", 1);
+        wait(50);
+        compare(named(list.itemAtIndex(0), "completeIssue-mine").enabled, false);
+        compare(descendants(popout, child => child.visible && child.text === "No completed status").length, 1);
+        daemon.teams = [{id: "team", states: team().states.nodes}];
+        compare(named(list.itemAtIndex(0), "completeIssue-mine").enabled, true);
+        compare(descendants(popout, child => child.visible && child.text === "No completed status").length, 0);
+        named(popout, "refreshIssues").clicked();
+        compare(named(list.itemAtIndex(0), "completeIssue-mine").enabled, false);
+        verify(descendants(popout, child => child.text === "Refreshing…").length > 0);
+        complete(null, "auth");
+        compare(named(list.itemAtIndex(0), "completeIssue-mine").enabled, false);
+        compare(named(list.itemAtIndex(0), "openIssue-mine").enabled, true);
+        compare(list.count, 1, "offline snapshot remains readable");
+    }
+
+    function test_ui_synchronous_transport_failure_retains_snapshot() {
         bootstrap();
         makeUi();
-        widget.draftTitle = "Do not lose";
+        const snapshot = JSON.stringify(daemon.issues);
         Api.nextError = "network";
-        widget.submitDraft();
-        verify(widget.pendingSubmission, "failure callback must not race caller state");
+        verify(daemon.completeIssue("mine"));
+        verify(daemon.busy, "failure callback must not race caller state");
+        compare(daemon.pendingIssueId, "mine");
         wait(0);
-        compare(widget.pendingSubmission, false);
-        compare(widget.draftTitle, "Do not lose");
+        compare(daemon.pendingIssueId, "");
+        compare(JSON.stringify(daemon.issues), snapshot);
         compare(mutationResults.join(","), "false");
         compare(daemon.busy, false);
     }
 
-    function test_ui_draft_account_identity_boundary_and_same_viewer_rotation() {
-        bootstrap();
+    function test_ui_keyboard_focus_accessible_actions() {
+        bootstrap([issue("child", "started", issue("context"))]);
         makeUi();
-        widget.draftTitle = "Original account draft";
-        widget.draftDate = "2028-02-29";
-        widget.teamId = "team";
-        secondWidget.draftDate = "2028-03-01";
-        compare(widget.draftAccountId, "viewer", "first title captures draft identity");
-        compare(secondWidget.draftAccountId, "viewer", "first date also captures draft identity");
-        daemon.reloadCredentials();
-        TestIo.file.inject("rotated-fixture-key");
-        complete({viewer: {id: "viewer", name: "Same viewer"}, teams: page([team()])});
-        complete({issues: page([issue("mine")])});
-        compare(widget.draftAccountChanged, false);
-        compare(widget.canWrite, true);
-        compare(named(popout, "submitIssue").enabled, true);
-        widget.submitDraft();
-        compare(widget.pendingSubmission, true, "same viewer key rotation keeps submit usable");
-        compare(request().variables.input.assigneeId, "viewer");
+        const list = named(popout, "issueList");
+        tryCompare(list, "count", 2);
+        wait(50);
+        const refresh = named(popout, "refreshIssues");
+        const pending = named(popout, "filter-active");
+        pending.forceActiveFocus();
+        tryCompare(pending, "activeFocus", true);
+        keyClick(Qt.Key_Tab);
+        const closed = named(popout, "filter-done");
+        tryCompare(closed, "activeFocus", true);
+        keyClick(Qt.Key_Space);
+        compare(widget.filter, "done");
+        keyClick(Qt.Key_Tab);
+        tryCompare(refresh, "activeFocus", true);
+        named(popout, "filter-active").clicked();
+        tryCompare(list, "count", 2);
+        wait(50);
+        const expand = named(list.itemAtIndex(0), "expandIssue-context");
+        verify(expand.Accessible.name.length > 0);
+        expand.forceActiveFocus();
+        keyClick(Qt.Key_Space);
+        tryCompare(list, "count", 1);
+        named(list.itemAtIndex(0), "expandIssue-context").forceActiveFocus();
+        keyClick(Qt.Key_Space);
+        tryCompare(list, "count", 2);
+        wait(50);
+        const completeButton = named(list.itemAtIndex(1), "completeIssue-child");
+        verify(completeButton.Accessible.name.length > 0);
+        verify(named(list.itemAtIndex(1), "openIssue-child").Accessible.name.length > 0);
+        completeButton.forceActiveFocus();
+        tryCompare(completeButton, "activeFocus", true);
+        keyClick(Qt.Key_Space);
+        compare(request().variables.id, "child");
         complete(null, "network");
-        compare(widget.draftTitle, "Original account draft");
-        compare(widget.draftDate, "2028-02-29");
-        daemon.reloadCredentials();
-        TestIo.file.inject("other-account-fixture-key");
-        complete({viewer: {id: "other-viewer", name: "Other viewer"}, teams: page([team()])});
-        complete({issues: page([issue("other")])});
-        compare(widget.draftAccountId, "viewer");
-        compare(widget.draftAccountChanged, true);
-        compare(widget.canWrite, false);
-        compare(named(popout, "submitIssue").enabled, false);
-        compare(named(popout, "issueTitle").enabled, false);
-        compare(named(popout, "dueDate").enabled, false);
-        const calls = Api.history.length;
-        widget.submitDraft();
-        widget.editIssue(widget.rows[0]);
-        widget.addChild(widget.rows[0]);
-        compare(Api.history.length, calls, "account mismatch cannot start any write");
-        compare(widget.pendingSubmission, false);
-        compare(widget.draftTitle, "Original account draft");
-        compare(widget.draftDate, "2028-02-29");
-        compare(widget.teamId, "team");
-        compare(widget.editingId, "");
-        compare(widget.parentId, "");
-        const warning = "Account changed. Cancel this draft before continuing.";
-        verify(descendants(popout, child => child.text === warning).length > 0);
-        let table = null;
-        const xhr = new XMLHttpRequest();
-        xhr.onreadystatechange = function() {
-            if (xhr.readyState === XMLHttpRequest.DONE)
-                table = JSON.parse(xhr.responseText);
-        };
-        xhr.open("GET", Qt.resolvedUrl("plugin/translations/zh_CN.json"));
-        xhr.send();
-        tryVerify(() => table !== null);
+    }
+
+    function test_ui_toolbar_initial_geometry_and_locale_changes() {
+        bootstrap([issue("mine"), issue("done", "completed")]);
+        makeUi();
+        compare(popout.width, 400, "check the initial fixture width before resizing");
+        function verifyToolbarFits() {
+            const refresh = named(popout, "refreshIssues");
+            const refreshPoint = refresh.mapToItem(popout, 0, 0);
+            verify(refreshPoint.x >= 0 && refreshPoint.x + refresh.width <= popout.width,
+                   "refresh stays within the initial popout");
+            for (const key of ["active", "done"]) {
+                const tab = named(popout, "filter-" + key);
+                const tabPoint = tab.mapToItem(popout, 0, 0);
+                verify(tabPoint.x >= 0 && tabPoint.x + tab.width <= refreshPoint.x,
+                       "refresh does not overlap the " + key + " tab");
+            }
+        }
+        verifyToolbarFits();
         I18n.localeTag = "zh_CN";
-        I18n.pluginTranslations = ({dankTodo: table});
+        I18n.pluginTranslations = ({dankTodo: {
+            "Pending": {"Pending": "待完成"},
+            "Closed": {"Closed": "已关闭"},
+            "Refresh": {"Refresh": "刷新"}
+        }});
         wait(0);
-        verify(descendants(popout, child => child.text === "账户已变更。请先取消此草稿再继续。").length > 0);
-        const cancel = named(popout, "cancelDraft");
-        compare(cancel.enabled, true);
-        cancel.clicked();
-        compare(widget.draftAccountId, "");
-        compare(widget.draftAccountChanged, false);
-        compare(widget.canWrite, true);
-        compare(widget.draftTitle, "");
-        compare(widget.draftDate, "");
-        verify(descendants(popout, child => child.text === "账户已变更。请先取消此草稿再继续。").length === 0);
-        widget.draftTitle = "New account draft";
-        compare(widget.draftAccountId, "other-viewer");
-        compare(named(popout, "submitIssue").enabled, true, "cancel restores submit usability for a new draft");
+        verify(named(popout, "filter-active").text.includes("待完成"));
+        verify(named(popout, "filter-done").text.includes("已关闭"));
+        verifyToolbarFits();
+        I18n.localeTag = "en_US";
+        I18n.pluginTranslations = ({});
+        wait(0);
+        verify(named(popout, "filter-active").text.includes("Pending"));
+        verifyToolbarFits();
     }
 
     function test_settings_paths_choices_and_popups() {
@@ -508,15 +637,12 @@ TestCase {
         makeUi();
         settings = settingsComponent.createObject(suite, {width: 500});
         verify(settings !== null);
-        const teamChoice = named(settings, "defaultTeamId");
         const countChoice = named(settings, "countMode");
-        compare(teamChoice.count, 1);
+        compare(descendants(settings, child => child.objectName === "defaultTeamId").length, 0);
         compare(countChoice.count, 4);
         countChoice.activated(3);
         compare(settings.values.countMode, "hidden");
-        teamChoice.activated(0);
-        compare(settings.values.defaultTeamId, "team");
-        for (const choice of [teamChoice, countChoice, named(popout, "issueChoice")]) {
+        for (const choice of [countChoice]) {
             choice.popup.open();
             tryCompare(choice.popup, "visible", true);
             wait(50);
@@ -585,21 +711,58 @@ TestCase {
         compare(TestIo.file.writeCount, 0);
     }
 
-    function test_mock_popout_visual_snapshot() {
-        bootstrap([issue("child", "started", issue("context", "completed")), issue("own")]);
+    function test_mock_popout_visual_snapshot_data() {
+        let cases = [];
+        for (const width of [460, 320])
+            for (const mode of ["pending", "closed", "no-status", "working", "error"])
+                cases.push({tag: width + "-" + mode, width: width, mode: mode});
+        return cases;
+    }
+
+    function test_mock_popout_visual_snapshot(data) {
+        const own = issue("own");
+        own.title = "A long task title that must wrap without covering completion or open-in-Linear controls";
+        own.team.name = "Team with a longer display name";
+        own.dueDate = "2028-02-29";
+        const done = issue("done", "completed");
+        done.title = "Completed task with a long title remains readable in the closed view";
+        const teams = [team()];
+        if (data.mode === "no-status")
+            teams[0].states = page([state("active", "started")]);
+        bootstrap([issue("child", "started", issue("context", "completed")), own,
+                   done, issue("canceled", "canceled")], teams);
         makeUi();
-        popout.width = 500;
+        popout.width = data.width;
         popout.height = 650;
+        if (data.mode === "closed")
+            named(popout, "filter-done").clicked();
+        if (data.mode === "working" || data.mode === "error") {
+            verify(daemon.completeIssue("own"));
+            if (data.mode === "error")
+                complete(null, "network");
+        }
         wait(50);
+        const list = named(popout, "issueList");
+        verify(list.count > 0);
+        for (let index = 0; index < list.count; index++) {
+            const row = list.itemAtIndex(index);
+            verify(row !== null);
+            for (const name of ["completeIssue-", "openIssue-"]) {
+                const action = named(row, name + row.modelData.id);
+                const point = action.mapToItem(row, 0, 0);
+                verify(point.x >= 0 && point.x + action.width <= row.width,
+                       "row actions remain inside " + data.width + "px content");
+            }
+        }
         let finished = false;
-        const path = decodeURIComponent(Qt.resolvedUrl("mock-popout.png").toString().replace(/^file:\/\//, ""));
+        const path = decodeURIComponent(Qt.resolvedUrl("mock-popout-" + data.tag + ".png").toString().replace(/^file:\/\//, ""));
         const started = popout.grabToImage(function(result) {
             if (result.saveToFile(path))
                 console.log("Mock-only popout screenshot: " + path);
             else
                 console.log("Mock-only popout screenshot unavailable: image save failed");
             finished = true;
-        }, Qt.size(500, 650));
+        }, Qt.size(data.width, 650));
         if (started)
             tryVerify(() => finished);
         else
@@ -623,31 +786,32 @@ TestCase {
         makeUi();
         settings = settingsComponent.createObject(suite, {width: 500});
         verify(settings !== null);
-        compare(popout.headerText, "My Linear issues");
-        compare(named(popout, "issueTitle").placeholderText, "Issue title");
+        compare(popout.headerText, "My tasks");
+        compare(popout.detailsText, "1 remaining");
         const hasText = (item, text) => descendants(item, child => child.text === text).length > 0;
         verify(hasText(settings, "Linear settings"));
         I18n.localeTag = "zh_CN";
         I18n.pluginTranslations = ({dankTodo: table});
         wait(0);
-        compare(popout.headerText, "我的 Linear 事项");
-        compare(named(popout, "issueTitle").placeholderText, "事项标题");
+        compare(popout.headerText, "我的任务");
+        compare(popout.detailsText, "1 项待完成");
         verify(hasText(settings, "Linear 设置"));
-        verify(hasText(popout, "未完成"));
+        verify(named(popout, "filter-active").text.includes("待完成"));
+        verify(named(popout, "filter-done").text.includes("已关闭"));
         verify(hasText(popout, "User title stays literal"));
-        widget.editIssue(widget.rows[0]);
-        compare(named(popout, "issueTitle").text, "User title stays literal");
-        compare(named(popout, "submitIssue").text, "保存更改");
-        widget.draftDate = "2026-02-29";
-        widget.submitDraft();
-        compare(daemon.error, "截止日期请使用 YYYY-MM-DD 格式，或留空。");
+        daemon.teams = [{id: "team", states: [state("active", "started")]}];
+        verify(descendants(popout, child => child.visible && child.text === "团队未配置完成状态").length > 0);
+        verify(daemon.refresh());
+        complete(null, "network");
+        compare(daemon.error, "无法连接 Linear。请检查网络连接后刷新。");
         I18n.localeTag = "en_US";
         I18n.pluginTranslations = ({});
         wait(0);
-        compare(popout.headerText, "My Linear issues");
-        compare(named(popout, "submitIssue").text, "Save changes");
-        compare(widget.draftTitle, "User title stays literal");
-        compare(daemon.error, "Use YYYY-MM-DD for the due date, or leave it empty.",
+        compare(popout.headerText, "My tasks");
+        verify(named(popout, "filter-active").text.includes("Pending"));
+        verify(named(popout, "filter-done").text.includes("Closed"));
+        verify(hasText(popout, "User title stays literal"));
+        compare(daemon.error, "Unable to reach Linear. Check your connection and refresh.",
                 "existing backend errors must react to locale changes");
         compare(TestIo.file.writeCount, 0);
     }

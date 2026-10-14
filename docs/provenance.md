@@ -15,8 +15,10 @@ LICENSE covers original tooling/docs/tests and does not replace upstream notices
 Migrated tests only change repository paths and omit chezmoi apply-hook checks;
 those remain in the dotfiles repository. Original source bytes of plugin files,
 overlay components, preparation helper, launcher and fixtures were preserved
-at migration. Todo `2.0.0-local.1` is a local rewrite using Linear's GraphQL API,
-with a shared daemon, DMS translations, native workflows and sub-issues.
+at migration. Todo `2.0.0-local.2` is a local rewrite using Linear's GraphQL API,
+with a shared daemon, DMS translations, native workflows and sub-issues. Its
+compact interface focuses on viewing assigned tasks and marking them complete;
+creation and arbitrary editing are intentionally excluded.
 It replaces the earlier local `1.3.0-local.1` enhancements and retains the upstream
 license, ID and original author attribution. Its old screenshot is historical,
 not a representation of the Linear rewrite.

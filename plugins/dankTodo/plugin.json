@@ -1,8 +1,8 @@
 {
     "id": "dankTodo",
     "name": "Dank Todo",
-    "description": "Your Linear issues in the Dank bar",
-    "version": "2.0.0-local.1",
+    "description": "View and complete your Linear issues from the Dank bar",
+    "version": "2.0.0-local.2",
     "license": "MIT",
     "author": "Deepu K Sasidharan",
     "icon": "checklist",

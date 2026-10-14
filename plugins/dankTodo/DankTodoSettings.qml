@@ -10,7 +10,6 @@ PluginSettings {
     id: root
     pluginId: "dankTodo"
     readonly property var service: PluginService.pluginDaemonInstances["dankTodo"] ?? null
-    readonly property var teams: service ? service.teams : []
     property string keyPathError: ""
 
     function saveKeyPath() {
@@ -32,7 +31,7 @@ PluginSettings {
     }
     StyledText {
         width: parent.width
-        text: I18n.trFor("dankTodo", "Manage issues assigned to you in Linear.")
+        text: I18n.trFor("dankTodo", "View and complete issues assigned to you in Linear.")
         font.pixelSize: Theme.fontSizeMedium
         color: Theme.surfaceVariantText
         wrapMode: Text.WordWrap
@@ -84,20 +83,6 @@ PluginSettings {
     }
 
     StyledText {
-        text: I18n.trFor("dankTodo", "Default team")
-        font.pixelSize: Theme.fontSizeMedium
-    }
-    ThemedChoice {
-        objectName: "defaultTeamId"
-        width: parent.width
-        label: I18n.trFor("dankTodo", "Default team")
-        enabled: root.teams.length > 0 && !root.service?.busy
-        model: root.teams
-        currentIndex: Math.max(0, root.teams.findIndex(t => t.id === root.loadValue("defaultTeamId", "")))
-        onActivated: function(index) { root.saveValue("defaultTeamId", root.teams[index].id); }
-    }
-
-    StyledText {
         text: I18n.trFor("dankTodo", "Bar count")
         font.pixelSize: Theme.fontSizeMedium
     }
@@ -106,9 +91,9 @@ PluginSettings {
         width: parent.width
         label: I18n.trFor("dankTodo", "Bar count")
         model: [
-            { key: "active", name: I18n.trFor("dankTodo", "Active") },
+            { key: "active", name: I18n.trFor("dankTodo", "Pending") },
             { key: "total", name: I18n.trFor("dankTodo", "Total") },
-            { key: "done", name: I18n.trFor("dankTodo", "Done") },
+            { key: "done", name: I18n.trFor("dankTodo", "Closed") },
             { key: "hidden", name: I18n.trFor("dankTodo", "Hidden") }
         ]
         currentIndex: Math.max(0, model.findIndex(t => t.key === root.loadValue("countMode", "active")))

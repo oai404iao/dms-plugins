@@ -14,11 +14,12 @@ description: Presentation of native DMS compact list popouts and vertically stac
 - [SHOULD] Use short, direct labels and neutral status messages.
 
 ## 3. Structure and composition
-- [SHOULD] Compose list popouts as a left-aligned header, compact status area, stacked form, and vertically scrolling list.
+- [SHOULD] Compose list popouts as a left-aligned header, compact view controls and status area, and vertically scrolling list. Omit forms in reading-focused popouts.
 - [SHOULD] Compose settings as a single column of labels, full-width controls and nearby help text.
 - [SHOULD] Keep related controls on one row only when their text remains readable; keep the main text input full width.
 - [SHOULD] Bound list scrolling inside its content region; wrap long primary text rather than shrinking it.
-- [SHOULD] Decision: use a 500px popout and at most 300px list viewport for this compact implementation. Source: native desktop popout constraints and existing `plugins/dankTodo/DankTodoWidget.qml`.
+- [SHOULD] Decision: use a 460px popout and at most 360px list viewport for this compact implementation. Source: the reading-focused layout in `plugins/dankTodo/DankTodoWidget.qml`.
+- [SHOULD] Keep row actions narrow and consistently aligned; let the primary text occupy the remaining width and wrap metadata beneath it.
 
 ## 4. Visual rules
 - [SHOULD] Inherit the host font through `StyledText`; use bold only for headings.
@@ -42,7 +43,7 @@ description: Presentation of native DMS compact list popouts and vertically stac
 | Input | `DankTextField`: `text`, `placeholderText`, `textEdited`, `accepted` | DMS `Widgets/DankTextField.qml` | Editable text | Implemented by host |
 | Icon | `DankIcon`: `name`, `size`, `color` | DMS `Widgets/DankIcon.qml` | Functional Material Symbols | Implemented by host |
 | Header | `PopoutComponent`: `headerText`, `detailsText`, `showCloseButton` | DMS `Modules/Plugins/PopoutComponent.qml` | Compact popout headers | Implemented by host |
-| Selection | Qt Quick Controls `ComboBox`, themed content/delegate/`Popup` | `plugins/dankTodo/DankTodoWidget.qml`, `DankTodoSettings.qml` | Same-surface keyboard-accessible choices | Implemented |
+| Selection | Qt Quick Controls `ComboBox`, themed content/delegate/`Popup` | `plugins/dankTodo/DankTodoSettings.qml` | Same-surface keyboard-accessible settings choices | Implemented |
 
 - [MUST] Use only the public primitives listed above for this scoped interface; do not guess host properties.
 - [SHOULD] Keep local layout styles inside the QML component; no new global style namespace is needed.

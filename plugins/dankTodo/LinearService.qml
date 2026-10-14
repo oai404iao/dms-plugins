@@ -20,6 +20,7 @@ Item {
     property var issues: []
     property bool busy: false
     property bool connected: false
+    property string pendingIssueId: ""
     property string _errorCode: ""
     readonly property string error: _errorCode ? errorText(_errorCode) : ""
     property string lastSyncedAt: ""
@@ -39,7 +40,6 @@ Item {
 
     function errorText(code) {
         switch (code) {
-        case "date": return I18n.trFor("dankTodo", "Use YYYY-MM-DD for the due date, or leave it empty.")
         case "keyFormat": return I18n.trFor("dankTodo", "The API key file must contain one key and nothing else.")
         case "keyRead": return I18n.trFor("dankTodo", "Cannot read the API key file. Check the configured path and file permissions.")
         case "auth": return I18n.trFor("dankTodo", "Linear authentication failed. Check the key and its permissions.")
@@ -57,12 +57,14 @@ Item {
             _request.cancel()
         _request = null
         busy = false
+        pendingIssueId = ""
     }
 
     function fail(code) {
         requestTimeout.stop()
         _request = null
         busy = false
+        pendingIssueId = ""
         if (code === "auth")
             connected = false
         _errorCode = code
@@ -76,8 +78,7 @@ Item {
         const generation = _generation
         requestTimeout.restart()
         _request = Api.request(_apiKey, query, variables, function (data, code) {
-            // Even immediate transport failures complete after the caller has
-            // recorded its pending draft, just like a normal network reply.
+            // Handle immediate transport failures asynchronously, like network replies.
             Qt.callLater(function () {
                 if (generation !== root._generation)
                     return
@@ -194,51 +195,30 @@ Item {
         busy = false
     }
 
-    function createIssue(title, teamId, parentId, dueDate) {
-        if (!Api.validDate(dueDate)) {
-            _errorCode = "date"
-            return false
-        }
-        const text = String(title || "").trim()
-        const team = teams.find(t => t.id === teamId)
-        const parent = parentId ? issues.find(t => t.id === parentId && t.isMine) : null
-        if (busy || !connected || !viewer || !text || !team
-                || (parentId && (!parent || parent.team.id !== teamId)))
-            return false
-        const input = { title: text, teamId: teamId, assigneeId: viewer.id }
-        if (parentId)
-            input.parentId = parentId
-        if (dueDate)
-            input.dueDate = dueDate
-        return mutate(Api.createMutation, { input: input }, "issueCreate")
-    }
-
-    function updateIssue(id, title, stateId, dueDate) {
-        if (!Api.validDate(dueDate)) {
-            _errorCode = "date"
-            return false
-        }
+    function canCompleteIssue(id) {
         const issue = issues.find(t => t.id === id && t.isMine)
-        const text = String(title || "").trim()
         const team = issue ? teams.find(t => t.id === issue.team.id) : null
-        if (busy || !connected || !issue || !text || !team
-                || !team.states.some(s => s.id === stateId))
-            return false
-        return mutate(Api.updateMutation, {
-            id: id, input: { title: text, stateId: stateId, dueDate: dueDate || null }
-        }, "issueUpdate")
+        return !busy && connected && !!viewer && !!viewer.id && !!issue
+            && !Api.isDone(issue) && !!team && team.states.some(s => s.type === "completed")
     }
 
-    function mutate(query, variables, field) {
+    function completeIssue(id) {
+        if (!canCompleteIssue(id))
+            return false
+        const issue = issues.find(t => t.id === id)
+        const team = teams.find(t => t.id === issue.team.id)
+        const state = team.states.find(s => s.type === "completed")
         busy = true
         _writing = true
+        pendingIssueId = id
         _errorCode = ""
-        send(query, variables, function (data) {
-            if (!data[field] || data[field].success !== true) {
+        send(Api.updateMutation, { id: id, input: { stateId: state.id } }, function (data) {
+            if (!data.issueUpdate || data.issueUpdate.success !== true) {
                 root.fail("response")
                 return
             }
             root._writing = false
+            root.pendingIssueId = ""
             // The server confirmed the mutation, even if the following refresh fails.
             root.mutationFinished(true)
             root.loadIssues([], null)
